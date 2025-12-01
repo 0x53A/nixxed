@@ -8,10 +8,7 @@
   time.timeZone = "Europe/Berlin";
 
   # Programs with simple enable
-  programs.git = {
-    enable = true;
-    lfs = "asdfg";
-  };
+  programs.git.enable = true;
   programs.vim.enable = true;
   programs.zsh.enable = false;
 
@@ -33,7 +30,6 @@
     virtualHosts."example.com" = {
       root = "/var/www/example";
     };
-      additionalModules = [a, b];
   };
 
   # System packages

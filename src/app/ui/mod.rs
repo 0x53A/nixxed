@@ -57,6 +57,87 @@ impl App {
         if self.rebuild_prompt.show {
             self.draw_rebuild_prompt(frame);
         }
+
+        if self.description_popup.show {
+            self.draw_description_popup(frame);
+        }
+    }
+
+    fn draw_description_popup(&mut self, frame: &mut Frame) {
+        let area = frame.area();
+
+        let popup_width = 70.min(area.width.saturating_sub(4));
+        let popup_height = 16.min(area.height.saturating_sub(4));
+        let popup_x = (area.width.saturating_sub(popup_width)) / 2;
+        let popup_y = (area.height.saturating_sub(popup_height)) / 2;
+
+        let popup_area = Rect {
+            x: popup_x,
+            y: popup_y,
+            width: popup_width,
+            height: popup_height,
+        };
+
+        frame.render_widget(Clear, popup_area);
+
+        let title = format!(" {} ", self.description_popup.name);
+        let block = Block::default()
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(Color::Cyan))
+            .title(title);
+
+        let inner = block.inner(popup_area);
+        frame.render_widget(block, popup_area);
+
+        // Word-wrap the description to fit the popup width
+        let max_width = inner.width.saturating_sub(2) as usize;
+        let wrapped = textwrap::wrap(&self.description_popup.description, max_width.max(1));
+        
+        // Update total lines for scroll calculation
+        let total_lines = wrapped.len() as u16;
+        let visible_lines = inner.height.saturating_sub(1); // Reserve 1 line for scroll hint
+        self.description_popup.total_lines = total_lines;
+        self.description_popup.visible_lines = visible_lines;
+
+        // Apply scroll offset
+        let scroll_offset = self.description_popup.scroll_offset as usize;
+        let visible_wrapped: Vec<Line> = wrapped
+            .iter()
+            .skip(scroll_offset)
+            .take(visible_lines as usize)
+            .map(|s| Line::from(s.to_string()))
+            .collect();
+
+        let description = Paragraph::new(visible_wrapped)
+            .style(Style::default().fg(Color::White));
+        frame.render_widget(description, Rect {
+            x: inner.x,
+            y: inner.y,
+            width: inner.width,
+            height: visible_lines,
+        });
+
+        // Show scroll indicator if content is scrollable
+        if total_lines > visible_lines {
+            let scroll_hint = if self.description_popup.scroll_offset == 0 {
+                "↓ Scroll with j/k, PgUp/PgDn"
+            } else if self.description_popup.scroll_offset >= total_lines.saturating_sub(visible_lines) {
+                "↑ Scroll with j/k, PgUp/PgDn"
+            } else {
+                "↑↓ Scroll with j/k, PgUp/PgDn"
+            };
+            let hint_line = Line::from(Span::styled(
+                scroll_hint,
+                Style::default().fg(Color::DarkGray),
+            ));
+            let hint_area = Rect {
+                x: inner.x,
+                y: inner.y + visible_lines,
+                width: inner.width,
+                height: 1,
+            };
+            frame.render_widget(Paragraph::new(hint_line), hint_area);
+        }
     }
 
     fn draw_rebuild_prompt(&self, frame: &mut Frame) {

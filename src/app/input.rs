@@ -50,6 +50,50 @@ impl App {
                 return Ok(());
             }
 
+            // Handle description popup if it's open
+            if self.description_popup.show {
+                match key.code {
+                    KeyCode::Up | KeyCode::Char('k') => {
+                        self.description_popup.scroll_offset = 
+                            self.description_popup.scroll_offset.saturating_sub(1);
+                    }
+                    KeyCode::Down | KeyCode::Char('j') => {
+                        let max_scroll = self.description_popup.total_lines
+                            .saturating_sub(self.description_popup.visible_lines);
+                        if self.description_popup.scroll_offset < max_scroll {
+                            self.description_popup.scroll_offset += 1;
+                        }
+                    }
+                    KeyCode::PageUp => {
+                        self.description_popup.scroll_offset = 
+                            self.description_popup.scroll_offset.saturating_sub(
+                                self.description_popup.visible_lines.saturating_sub(1)
+                            );
+                    }
+                    KeyCode::PageDown => {
+                        let max_scroll = self.description_popup.total_lines
+                            .saturating_sub(self.description_popup.visible_lines);
+                        self.description_popup.scroll_offset = 
+                            (self.description_popup.scroll_offset + 
+                             self.description_popup.visible_lines.saturating_sub(1))
+                            .min(max_scroll);
+                    }
+                    KeyCode::Home => {
+                        self.description_popup.scroll_offset = 0;
+                    }
+                    KeyCode::End => {
+                        self.description_popup.scroll_offset = self.description_popup.total_lines
+                            .saturating_sub(self.description_popup.visible_lines);
+                    }
+                    _ => {
+                        // Any other key closes the popup
+                        self.description_popup.show = false;
+                        self.description_popup.scroll_offset = 0;
+                    }
+                }
+                return Ok(());
+            }
+
             // Handle rebuild prompt if it's open
             if self.rebuild_prompt.show {
                 self.handle_rebuild_prompt_input(key.code)?;
@@ -325,6 +369,10 @@ impl App {
                 // Open property editor for the selected entry (only for programs/services)
                 self.open_property_editor(&list_type)?;
             }
+            KeyCode::Char('d') | KeyCode::Char('D') => {
+                // Show description popup for the selected entry
+                self.show_description_popup(&list_type);
+            }
             _ => {}
         }
 
@@ -408,5 +456,34 @@ impl App {
             _ => {}
         }
         Ok(())
+    }
+
+    /// Show description popup for the currently selected entry
+    fn show_description_popup(&mut self, list_type: &ListType) {
+        let entry = match list_type {
+            ListType::Programs => self
+                .program_state
+                .selected()
+                .and_then(|i| self.programs.get(i)),
+            ListType::Services => self
+                .service_state
+                .selected()
+                .and_then(|i| self.services.get(i)),
+            ListType::Packages => self
+                .package_state
+                .selected()
+                .and_then(|i| self.packages.get(i)),
+        };
+
+        if let Some(entry) = entry {
+            self.description_popup.name = entry.name.clone();
+            self.description_popup.description = if entry.description.is_empty() {
+                "No description available".to_string()
+            } else {
+                entry.description.clone()
+            };
+            self.description_popup.scroll_offset = 0; // Reset scroll when opening
+            self.description_popup.show = true;
+        }
     }
 }

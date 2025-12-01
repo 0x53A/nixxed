@@ -1,6 +1,6 @@
 use anyhow::{Context, Result};
 use serde::Deserialize;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::PathBuf;
 use std::process::Command;
@@ -52,6 +52,30 @@ struct PackageSource {
     package_description: Option<String>,
     #[serde(default)]
     package_programs: Option<Vec<String>>,
+}
+
+/// Response from NixOS options search API
+#[derive(Debug, Deserialize)]
+struct OptionElasticResponse {
+    hits: OptionElasticHits,
+}
+
+#[derive(Debug, Deserialize)]
+struct OptionElasticHits {
+    hits: Vec<OptionElasticHit>,
+}
+
+#[derive(Debug, Deserialize)]
+struct OptionElasticHit {
+    #[serde(rename = "_source")]
+    source: OptionSource,
+}
+
+#[derive(Debug, Deserialize)]
+struct OptionSource {
+    option_name: String,
+    #[serde(default)]
+    option_description: Option<String>,
 }
 
 /// Message sent from search thread to main thread
@@ -318,6 +342,179 @@ fn build_search_body(query: &str) -> String {
     .to_string()
 }
 
+/// Build search body for querying NixOS options
+/// Searches for programs.*.enable and services.*.enable options
+fn build_options_search_body(query: &str) -> String {
+    serde_json::json!({
+        "from": 0,
+        "size": 100,
+        "sort": [
+            {"_score": "desc"},
+            {"option_name": "desc"}
+        ],
+        "query": {
+            "bool": {
+                "filter": [
+                    {"term": {"type": {"value": "option"}}}
+                ],
+                "must": [
+                    {
+                        "dis_max": {
+                            "tie_breaker": 0.7,
+                            "queries": [
+                                {
+                                    "multi_match": {
+                                        "type": "cross_fields",
+                                        "query": query,
+                                        "analyzer": "whitespace",
+                                        "auto_generate_synonyms_phrase_query": false,
+                                        "operator": "and",
+                                        "fields": [
+                                            "option_name^6",
+                                            "option_description^1"
+                                        ]
+                                    }
+                                },
+                                {
+                                    "wildcard": {
+                                        "option_name": {
+                                            "value": format!("*{}*", query.to_lowercase()),
+                                            "case_insensitive": true
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                ]
+            }
+        }
+    })
+    .to_string()
+}
+
+/// Represents a NixOS module option (programs.X or services.X)
+#[derive(Debug, Clone)]
+pub struct NixOption {
+    /// The prefix: "programs" or "services"
+    pub prefix: String,
+    /// The module name (e.g., "hyprland", "git", "nginx")
+    pub module_name: String,
+    /// Description from the option
+    pub description: String,
+}
+
+/// Fetch available NixOS options matching the query
+/// Returns a list of NixOption for programs.*.enable and services.*.enable
+fn fetch_nix_options(query: &str, http_cache: &HttpCache) -> Vec<NixOption> {
+    let search_body = build_options_search_body(query);
+    
+    let response = if let Some(cached) = http_cache.get(&search_body) {
+        cached
+    } else {
+        let output = match Command::new("curl")
+            .args([
+                "-s",
+                "-X",
+                "POST",
+                API_URL,
+                "-H",
+                "Content-Type: application/json",
+                "-H",
+                &format!("Authorization: {}", API_AUTH),
+                "-d",
+                &search_body,
+            ])
+            .output()
+        {
+            Ok(output) => output,
+            Err(_) => return Vec::new(),
+        };
+
+        let response = String::from_utf8_lossy(&output.stdout).to_string();
+
+        if !response.is_empty() && !response.contains("\"error\"") {
+            http_cache.set(&search_body, &response);
+        }
+
+        response
+    };
+
+    if response.trim().is_empty() {
+        return Vec::new();
+    }
+
+    parse_options_response(&response)
+}
+
+/// Parse the options API response and extract programs.*.enable and services.*.enable
+fn parse_options_response(output: &str) -> Vec<NixOption> {
+    let mut options = Vec::new();
+    let mut seen = HashSet::new();
+
+    let response: OptionElasticResponse = match serde_json::from_str(output) {
+        Ok(r) => r,
+        Err(_) => return options,
+    };
+
+    for hit in response.hits.hits {
+        let option_name = &hit.source.option_name;
+        
+        // Only process *.enable options
+        if !option_name.ends_with(".enable") {
+            continue;
+        }
+
+        // Parse options like "programs.hyprland.enable" or "services.nginx.enable"
+        let parts: Vec<&str> = option_name.split('.').collect();
+        if parts.len() >= 3 {
+            let prefix = parts[0];
+            if prefix == "programs" || prefix == "services" {
+                // The module name is the second part
+                let module_name = parts[1].to_string();
+                let key = (prefix.to_string(), module_name.clone());
+                
+                // Only add each program/service once
+                if !seen.contains(&key) {
+                    seen.insert(key);
+                    
+                    // Clean up HTML from description
+                    let description = hit.source.option_description
+                        .as_ref()
+                        .map(|d| strip_html_tags(d))
+                        .unwrap_or_default();
+                    
+                    options.push(NixOption {
+                        prefix: prefix.to_string(),
+                        module_name,
+                        description,
+                    });
+                }
+            }
+        }
+    }
+
+    options
+}
+
+/// Strip HTML tags from a string (simple implementation)
+fn strip_html_tags(s: &str) -> String {
+    let mut result = String::new();
+    let mut in_tag = false;
+    
+    for c in s.chars() {
+        match c {
+            '<' => in_tag = true,
+            '>' => in_tag = false,
+            _ if !in_tag => result.push(c),
+            _ => {}
+        }
+    }
+    
+    // Clean up extra whitespace
+    result.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
 fn run_nix_search_cached(query: &str, cache_dir: &PathBuf) -> Result<Vec<SearchResult>> {
     let search_body = build_search_body(query);
 
@@ -325,6 +522,9 @@ fn run_nix_search_cached(query: &str, cache_dir: &PathBuf) -> Result<Vec<SearchR
     let http_cache = HttpCache {
         cache_dir: cache_dir.clone(),
     };
+
+    // Fetch available NixOS options for categorization
+    let available_options = fetch_nix_options(query, &http_cache);
 
     // Check HTTP cache first
     let response = if let Some(cached) = http_cache.get(&search_body) {
@@ -361,7 +561,7 @@ fn run_nix_search_cached(query: &str, cache_dir: &PathBuf) -> Result<Vec<SearchR
         return Ok(Vec::new());
     }
 
-    parse_elastic_response(&response, query)
+    parse_elastic_response(&response, query, &available_options)
 }
 
 /// Calculate a match score for local sorting (higher = better match)
@@ -386,33 +586,32 @@ fn calculate_match_score(name: &str, query: &str) -> u32 {
     }
 }
 
-fn parse_elastic_response(output: &str, query: &str) -> Result<Vec<SearchResult>> {
+fn parse_elastic_response(
+    output: &str,
+    query: &str,
+    available_options: &[NixOption],
+) -> Result<Vec<SearchResult>> {
     let response: ElasticResponse =
         serde_json::from_str(output).context("Failed to parse search response")?;
 
     let mut results = Vec::new();
+    let mut seen_names: HashSet<String> = HashSet::new();
 
+    // First, add all packages from the packages API
     for (api_order, hit) in response.hits.hits.into_iter().enumerate() {
         let source = hit.source;
         let name = source
             .package_pname
             .unwrap_or_else(|| source.package_attr_name.clone());
         let description = source.package_description.unwrap_or_default();
-        let has_programs = source
-            .package_programs
-            .map(|p| !p.is_empty())
-            .unwrap_or(false);
 
-        // Categorize based on description and whether it has programs
-        let category = if has_programs {
-            SearchCategory::Program
-        } else {
-            categorize_result(&name, &description)
-        };
+        // Categorize based on available NixOS options
+        let category = categorize_result(&name, available_options);
 
         // Calculate local match score
         let match_score = calculate_match_score(&name, query);
 
+        seen_names.insert(name.clone());
         results.push((
             SearchResult {
                 name,
@@ -424,6 +623,39 @@ fn parse_elastic_response(output: &str, query: &str) -> Result<Vec<SearchResult>
         ));
     }
 
+    // Then, add programs/services from the options API that weren't in packages
+    // These are NixOS modules that might not have a corresponding package with the same name
+    let options_start_order = results.len();
+    for (idx, option) in available_options.iter().enumerate() {
+        if !seen_names.contains(&option.module_name) {
+            let category = if option.prefix == "services" {
+                SearchCategory::Service
+            } else {
+                SearchCategory::Program
+            };
+
+            let match_score = calculate_match_score(&option.module_name, query);
+
+            // Use the option's description from the API
+            let description = if option.description.is_empty() {
+                format!("{}.{} NixOS module", option.prefix, option.module_name)
+            } else {
+                option.description.clone()
+            };
+
+            results.push((
+                SearchResult {
+                    name: option.module_name.clone(),
+                    description,
+                    category,
+                },
+                match_score,
+                options_start_order + idx,
+            ));
+            seen_names.insert(option.module_name.clone());
+        }
+    }
+
     // Sort by: match_score (desc), then api_order (asc) for tie-breaking
     results.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.2.cmp(&b.2)));
 
@@ -431,31 +663,23 @@ fn parse_elastic_response(output: &str, query: &str) -> Result<Vec<SearchResult>
     Ok(results.into_iter().map(|(r, _, _)| r).collect())
 }
 
-fn categorize_result(name: &str, description: &str) -> SearchCategory {
-    let desc_lower = description.to_lowercase();
-    let name_lower = name.to_lowercase();
-
-    // Check for service-like packages
-    if desc_lower.contains("daemon")
-        || desc_lower.contains("server")
-        || desc_lower.contains("service")
-        || (name_lower.ends_with("d") && desc_lower.contains("system"))
-    {
-        return SearchCategory::Service;
+/// Categorize a package based on available NixOS options
+/// Checks if there's a programs.<name>.enable or services.<name>.enable option
+fn categorize_result(name: &str, available_options: &[NixOption]) -> SearchCategory {
+    // Check for services first (takes priority as it implies a daemon)
+    for option in available_options {
+        if option.prefix == "services" && option.module_name == name {
+            return SearchCategory::Service;
+        }
     }
 
-    // Check for program-like packages (have a main executable)
-    if desc_lower.contains("program")
-        || desc_lower.contains("tool")
-        || desc_lower.contains("editor")
-        || desc_lower.contains("browser")
-        || desc_lower.contains("shell")
-        || desc_lower.contains("compiler")
-        || desc_lower.contains("utility")
-    {
-        return SearchCategory::Program;
+    // Check for programs
+    for option in available_options {
+        if option.prefix == "programs" && option.module_name == name {
+            return SearchCategory::Program;
+        }
     }
 
-    // Default to Package
+    // Default to Package (environment.systemPackages)
     SearchCategory::Package
 }

@@ -10,7 +10,14 @@ use crossterm::{
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
-use ratatui::{backend::CrosstermBackend, Terminal};
+use ratatui::{
+    backend::CrosstermBackend,
+    layout::{Constraint, Layout, Alignment},
+    style::{Color, Style, Stylize},
+    text::{Line, Span},
+    widgets::{Block, Borders, Paragraph},
+    Terminal,
+};
 use std::io;
 use std::path::PathBuf;
 
@@ -34,6 +41,9 @@ fn main() -> Result<()> {
 
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend).context("Failed to create terminal")?;
+
+    // Draw loading screen while initializing
+    draw_loading_screen(&mut terminal, "Initializing...", "Verifying packages and loading schemas")?;
 
     // Create and run the app
     let mut app = App::new(config);
@@ -206,4 +216,61 @@ fn find_config_path() -> Result<PathBuf> {
          Please specify the path as a command line argument:\n\
          nixxed /path/to/configuration.nix"
     )
+}
+
+/// Draw a loading screen with a title and message
+fn draw_loading_screen(
+    terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
+    title: &str,
+    message: &str,
+) -> Result<()> {
+    terminal.draw(|f| {
+        let area = f.area();
+
+        // Create a centered layout
+        let vertical = Layout::vertical([
+            Constraint::Percentage(40),
+            Constraint::Length(7),
+            Constraint::Percentage(40),
+        ])
+        .split(area);
+
+        let horizontal = Layout::horizontal([
+            Constraint::Percentage(20),
+            Constraint::Percentage(60),
+            Constraint::Percentage(20),
+        ])
+        .split(vertical[1]);
+
+        let content_area = horizontal[1];
+
+        // Build the loading box content
+        let lines = vec![
+            Line::from(""),
+            Line::from(Span::styled(
+                format!("  {}  ", title),
+                Style::default().fg(Color::Cyan).bold(),
+            )),
+            Line::from(""),
+            Line::from(Span::styled(
+                format!("  {}  ", message),
+                Style::default().fg(Color::Gray),
+            )),
+            Line::from(""),
+        ];
+
+        let paragraph = Paragraph::new(lines)
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .border_style(Style::default().fg(Color::Cyan))
+                    .title(" nixxed ")
+                    .title_alignment(Alignment::Center),
+            )
+            .alignment(Alignment::Center);
+
+        f.render_widget(paragraph, content_area);
+    })?;
+
+    Ok(())
 }

@@ -19,7 +19,7 @@ use ratatui::{layout::Rect, widgets::ListState};
 use crate::config_parser::{EntryType, NixConfig, SchemaCache};
 use crate::search::{NixSearcher, SearchResult};
 
-use types::{Focus, ListEntry, PropertyEditorState, RebuildPromptState};
+use types::{DescriptionPopupState, Focus, ListEntry, PropertyEditorState, RebuildPromptState};
 
 pub struct App {
     pub config: NixConfig,
@@ -52,6 +52,8 @@ pub struct App {
     pub rebuild_prompt: RebuildPromptState,
     // Track unsaved changes
     pub is_dirty: bool,
+    // Description popup state
+    pub description_popup: DescriptionPopupState,
 }
 
 impl App {
@@ -88,6 +90,7 @@ impl App {
             property_list_area: Rect::default(),
             rebuild_prompt: RebuildPromptState::default(),
             is_dirty: false,
+            description_popup: DescriptionPopupState::default(),
         };
 
         app.load_from_config();
@@ -102,6 +105,7 @@ impl App {
             .into_iter()
             .map(|e| ListEntry {
                 name: e.name.clone(),
+                description: String::new(),
                 enabled: e.enabled,
                 in_config: true,
                 has_extra_config: e.has_extra_config,
@@ -116,6 +120,7 @@ impl App {
             .into_iter()
             .map(|e| ListEntry {
                 name: e.name.clone(),
+                description: String::new(),
                 enabled: e.enabled,
                 in_config: true,
                 has_extra_config: e.has_extra_config,
@@ -130,6 +135,7 @@ impl App {
             .into_iter()
             .map(|e| ListEntry {
                 name: e.name.clone(),
+                description: String::new(),
                 enabled: e.enabled,
                 in_config: true,
                 has_extra_config: false,

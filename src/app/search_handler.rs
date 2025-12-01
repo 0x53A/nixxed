@@ -1,5 +1,5 @@
 use anyhow::Result;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use crate::app::types::ListEntry;
 use crate::app::App;
@@ -50,6 +50,13 @@ impl App {
     fn process_search_results(&mut self, results: Vec<SearchResult>) {
         self.search_results = results;
 
+        // Build a map from package name to description for quick lookup
+        let descriptions: HashMap<String, String> = self
+            .search_results
+            .iter()
+            .map(|r| (r.name.clone(), r.description.clone()))
+            .collect();
+
         // Get current config entries as a set for quick lookup
         let config_programs: HashSet<String> = self
             .config
@@ -82,6 +89,7 @@ impl App {
             if entry.name.to_lowercase().contains(&query_lower) {
                 self.programs.push(ListEntry {
                     name: entry.name.clone(),
+                    description: descriptions.get(&entry.name).cloned().unwrap_or_default(),
                     enabled: entry.enabled,
                     in_config: true,
                     has_extra_config: entry.has_extra_config,
@@ -94,6 +102,7 @@ impl App {
             if entry.name.to_lowercase().contains(&query_lower) {
                 self.services.push(ListEntry {
                     name: entry.name.clone(),
+                    description: descriptions.get(&entry.name).cloned().unwrap_or_default(),
                     enabled: entry.enabled,
                     in_config: true,
                     has_extra_config: entry.has_extra_config,
@@ -106,6 +115,7 @@ impl App {
             if entry.name.to_lowercase().contains(&query_lower) {
                 self.packages.push(ListEntry {
                     name: entry.name.clone(),
+                    description: descriptions.get(&entry.name).cloned().unwrap_or_default(),
                     enabled: entry.enabled,
                     in_config: true,
                     has_extra_config: false,
@@ -114,16 +124,31 @@ impl App {
             }
         }
 
-        // Add search results that aren't already in config
-        // Keep track of their original order (relevance)
+        // Add search results - each result goes to its category AND to packages
+        // (since every program/service is also installable as a package)
         for (relevance_order, result) in self.search_results.iter().enumerate() {
             match result.category {
                 SearchCategory::Program => {
+                    // Add to programs list if not already there
                     if !config_programs.contains(&result.name)
                         && !self.programs.iter().any(|p| p.name == result.name)
                     {
                         self.programs.push(ListEntry {
                             name: result.name.clone(),
+                            description: result.description.clone(),
+                            enabled: false,
+                            in_config: false,
+                            has_extra_config: false,
+                            relevance_order,
+                        });
+                    }
+                    // Also add to packages list (programs can be installed as packages too)
+                    if !config_packages.contains(&result.name)
+                        && !self.packages.iter().any(|p| p.name == result.name)
+                    {
+                        self.packages.push(ListEntry {
+                            name: result.name.clone(),
+                            description: result.description.clone(),
                             enabled: false,
                             in_config: false,
                             has_extra_config: false,
@@ -132,11 +157,26 @@ impl App {
                     }
                 }
                 SearchCategory::Service => {
+                    // Add to services list if not already there
                     if !config_services.contains(&result.name)
                         && !self.services.iter().any(|s| s.name == result.name)
                     {
                         self.services.push(ListEntry {
                             name: result.name.clone(),
+                            description: result.description.clone(),
+                            enabled: false,
+                            in_config: false,
+                            has_extra_config: false,
+                            relevance_order,
+                        });
+                    }
+                    // Also add to packages list (services can be installed as packages too)
+                    if !config_packages.contains(&result.name)
+                        && !self.packages.iter().any(|p| p.name == result.name)
+                    {
+                        self.packages.push(ListEntry {
+                            name: result.name.clone(),
+                            description: result.description.clone(),
                             enabled: false,
                             in_config: false,
                             has_extra_config: false,
@@ -145,11 +185,13 @@ impl App {
                     }
                 }
                 SearchCategory::Package => {
+                    // Only add to packages list
                     if !config_packages.contains(&result.name)
                         && !self.packages.iter().any(|p| p.name == result.name)
                     {
                         self.packages.push(ListEntry {
                             name: result.name.clone(),
+                            description: result.description.clone(),
                             enabled: false,
                             in_config: false,
                             has_extra_config: false,

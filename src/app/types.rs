@@ -21,6 +21,7 @@ pub struct RebuildPromptState {
 #[derive(Debug, Clone)]
 pub struct ListEntry {
     pub name: String,
+    pub description: String, // Description from search results
     pub enabled: bool,
     pub in_config: bool, // Whether this entry exists in the config file
     pub has_extra_config: bool,
@@ -58,6 +59,17 @@ pub struct PropertyEditorState {
     pub editing_name: bool, // true = editing name, false = editing value
     pub available_options: Vec<(String, NixOptionInfo)>,
     pub showing_available: bool, // Toggle between configured and available
+}
+
+/// State for showing a description popup
+#[derive(Debug, Default)]
+pub struct DescriptionPopupState {
+    pub show: bool,
+    pub name: String,
+    pub description: String,
+    pub scroll_offset: u16,
+    pub total_lines: u16,
+    pub visible_lines: u16,
 }
 
 impl Default for PropertyEditorState {
