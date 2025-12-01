@@ -35,7 +35,7 @@ pub enum PropertyType {
     Path,
     List,
     AttrSet,
-    Expression,  // For complex Nix expressions we can't categorize
+    Expression, // For complex Nix expressions we can't categorize
 }
 
 /// A single configuration property within a program/service block
@@ -46,8 +46,6 @@ pub struct ConfigProperty {
     pub property_type: PropertyType,
     pub text_range: (usize, usize),
 }
-
-
 
 /// Information about a NixOS option from the schema
 #[derive(Debug, Clone, Deserialize, serde::Serialize)]
@@ -99,10 +97,10 @@ impl SchemaCache {
             .unwrap_or_else(|| PathBuf::from("/tmp"))
             .join("nixxed")
             .join("schemas");
-        
+
         // Create cache directory if it doesn't exist
         let _ = fs::create_dir_all(&cache_dir);
-        
+
         SchemaCache {
             cache_dir,
             memory_cache: HashMap::new(),
@@ -111,7 +109,8 @@ impl SchemaCache {
 
     /// Get the cache file path for a program/service
     fn cache_path(&self, entry_type: &EntryType, name: &str) -> PathBuf {
-        self.cache_dir.join(format!("{}.{}.json", entry_type.prefix(), name))
+        self.cache_dir
+            .join(format!("{}.{}.json", entry_type.prefix(), name))
     }
 
     /// Fetch schema for a program or service
@@ -122,7 +121,7 @@ impl SchemaCache {
         }
 
         let key = format!("{:?}.{}", entry_type, name);
-        
+
         // Check memory cache first
         if let Some(schema) = self.memory_cache.get(&key) {
             if let Ok(age) = SystemTime::now().duration_since(schema.fetched_at) {
@@ -139,7 +138,9 @@ impl SchemaCache {
                 if let Ok(age) = SystemTime::now().duration_since(modified) {
                     if age < SCHEMA_CACHE_MAX_AGE {
                         if let Ok(content) = fs::read_to_string(&cache_path) {
-                            if let Ok(options) = serde_json::from_str::<HashMap<String, NixOptionInfo>>(&content) {
+                            if let Ok(options) =
+                                serde_json::from_str::<HashMap<String, NixOptionInfo>>(&content)
+                            {
                                 let schema = NixSchema {
                                     options,
                                     fetched_at: modified,
@@ -209,16 +210,17 @@ in builtins.mapAttrs getInfo opts
 
     /// Get available options that are not yet configured
     pub fn get_available_options(
-        &mut self, 
-        entry_type: &EntryType, 
-        name: &str, 
-        configured: &[ConfigProperty]
+        &mut self,
+        entry_type: &EntryType,
+        name: &str,
+        configured: &[ConfigProperty],
     ) -> Vec<(String, NixOptionInfo)> {
         if let Some(schema) = self.get_schema(entry_type, name) {
-            let configured_names: std::collections::HashSet<_> = 
+            let configured_names: std::collections::HashSet<_> =
                 configured.iter().map(|p| p.name.as_str()).collect();
-            
-            schema.options
+
+            schema
+                .options
                 .into_iter()
                 .filter(|(opt_name, _)| {
                     // Skip 'enable' as it's handled separately
@@ -245,7 +247,7 @@ fn is_valid_package_name(s: &str) -> bool {
     if s.is_empty() {
         return false;
     }
-    
+
     // Filter out section headers - they're typically capitalized single words
     // like "# Development", "# Editors", "# Terminals"
     // Real package names are lowercase (git, vim, rust-analyzer)
@@ -253,19 +255,19 @@ fn is_valid_package_name(s: &str) -> bool {
     if first_char.is_ascii_uppercase() {
         return false;
     }
-    
+
     // Must start with a lowercase letter or underscore
     if !first_char.is_ascii_lowercase() && first_char != '_' {
         return false;
     }
-    
+
     // Rest can be letters, digits, hyphens, or underscores
     for c in s.chars().skip(1) {
         if !c.is_ascii_alphanumeric() && c != '-' && c != '_' {
             return false;
         }
     }
-    
+
     true
 }
 
@@ -311,12 +313,12 @@ impl NixConfig {
             if entry.enabled {
                 return true;
             }
-            
+
             // For disabled packages, verify they exist
             if entry.entry_type == EntryType::Package {
                 return searcher.verify_package_exists(&entry.name);
             }
-            
+
             // Keep disabled programs/services (they might be NixOS options)
             true
         });
@@ -324,12 +326,12 @@ impl NixConfig {
 
     fn parse(&mut self) -> Result<()> {
         let parse = rnix::Root::parse(&self.content);
-        
+
         // We'll still parse even with errors, as partial parsing often works
         let root = parse.tree();
-        
+
         self.visit_node(root.syntax());
-        
+
         Ok(())
     }
 
@@ -356,14 +358,17 @@ impl NixConfig {
 
     fn check_attrpath_value(&mut self, node: &SyntaxNode) {
         // Get the attribute path
-        let attrpath = node.children().find(|c| c.kind() == SyntaxKind::NODE_ATTRPATH);
+        let attrpath = node
+            .children()
+            .find(|c| c.kind() == SyntaxKind::NODE_ATTRPATH);
         let value = node.children().find(|c| {
-            matches!(c.kind(), 
-                SyntaxKind::NODE_ATTR_SET | 
-                SyntaxKind::NODE_LITERAL |
-                SyntaxKind::NODE_IDENT |
-                SyntaxKind::NODE_LIST |
-                SyntaxKind::NODE_WITH
+            matches!(
+                c.kind(),
+                SyntaxKind::NODE_ATTR_SET
+                    | SyntaxKind::NODE_LITERAL
+                    | SyntaxKind::NODE_IDENT
+                    | SyntaxKind::NODE_LIST
+                    | SyntaxKind::NODE_WITH
             )
         });
 
@@ -372,16 +377,22 @@ impl NixConfig {
             let path_parts: Vec<&str> = path_text.split('.').collect();
 
             // Check for programs.*.enable pattern
-            if path_parts.len() >= 3 && path_parts[0] == "programs" && path_parts.last() == Some(&"enable") {
+            if path_parts.len() >= 3
+                && path_parts[0] == "programs"
+                && path_parts.last() == Some(&"enable")
+            {
                 let program_name = path_parts[1].to_string();
                 let enabled = self.get_bool_value(&value);
-                
+
                 self.entries.push(ConfigEntry {
                     name: program_name,
                     entry_type: EntryType::Program,
                     enabled,
                     has_extra_config: false,
-                    text_range: (node.text_range().start().into(), node.text_range().end().into()),
+                    text_range: (
+                        node.text_range().start().into(),
+                        node.text_range().end().into(),
+                    ),
                     properties: Vec::new(),
                 });
             }
@@ -389,13 +400,18 @@ impl NixConfig {
             else if path_parts.len() == 2 && path_parts[0] == "programs" {
                 if let Some(ref val) = value {
                     if val.kind() == SyntaxKind::NODE_ATTR_SET {
-                        if let Some((enabled, has_extra, properties)) = self.check_attr_set_for_enable(val) {
+                        if let Some((enabled, has_extra, properties)) =
+                            self.check_attr_set_for_enable(val)
+                        {
                             self.entries.push(ConfigEntry {
                                 name: path_parts[1].to_string(),
                                 entry_type: EntryType::Program,
                                 enabled,
                                 has_extra_config: has_extra,
-                                text_range: (node.text_range().start().into(), node.text_range().end().into()),
+                                text_range: (
+                                    node.text_range().start().into(),
+                                    node.text_range().end().into(),
+                                ),
                                 properties,
                             });
                         }
@@ -403,16 +419,22 @@ impl NixConfig {
                 }
             }
             // Check for services.*.enable pattern
-            else if path_parts.len() >= 3 && path_parts[0] == "services" && path_parts.last() == Some(&"enable") {
+            else if path_parts.len() >= 3
+                && path_parts[0] == "services"
+                && path_parts.last() == Some(&"enable")
+            {
                 let service_name = path_parts[1].to_string();
                 let enabled = self.get_bool_value(&value);
-                
+
                 self.entries.push(ConfigEntry {
                     name: service_name,
                     entry_type: EntryType::Service,
                     enabled,
                     has_extra_config: false,
-                    text_range: (node.text_range().start().into(), node.text_range().end().into()),
+                    text_range: (
+                        node.text_range().start().into(),
+                        node.text_range().end().into(),
+                    ),
                     properties: Vec::new(),
                 });
             }
@@ -420,13 +442,18 @@ impl NixConfig {
             else if path_parts.len() == 2 && path_parts[0] == "services" {
                 if let Some(ref val) = value {
                     if val.kind() == SyntaxKind::NODE_ATTR_SET {
-                        if let Some((enabled, has_extra, properties)) = self.check_attr_set_for_enable(val) {
+                        if let Some((enabled, has_extra, properties)) =
+                            self.check_attr_set_for_enable(val)
+                        {
                             self.entries.push(ConfigEntry {
                                 name: path_parts[1].to_string(),
                                 entry_type: EntryType::Service,
                                 enabled,
                                 has_extra_config: has_extra,
-                                text_range: (node.text_range().start().into(), node.text_range().end().into()),
+                                text_range: (
+                                    node.text_range().start().into(),
+                                    node.text_range().end().into(),
+                                ),
                                 properties,
                             });
                         }
@@ -466,20 +493,27 @@ impl NixConfig {
         }
     }
 
-    fn check_attr_set_for_enable(&self, attr_set: &SyntaxNode) -> Option<(bool, bool, Vec<ConfigProperty>)> {
+    fn check_attr_set_for_enable(
+        &self,
+        attr_set: &SyntaxNode,
+    ) -> Option<(bool, bool, Vec<ConfigProperty>)> {
         let mut found_enable = false;
         let mut enabled = false;
         let mut properties = Vec::new();
 
         for child in attr_set.children() {
             if child.kind() == SyntaxKind::NODE_ATTRPATH_VALUE {
-                let attrpath = child.children().find(|c| c.kind() == SyntaxKind::NODE_ATTRPATH);
+                let attrpath = child
+                    .children()
+                    .find(|c| c.kind() == SyntaxKind::NODE_ATTRPATH);
                 if let Some(ap) = attrpath {
                     let path_text = self.get_attrpath_text(&ap);
-                    
+
                     // Find the value node
-                    let value_node = child.children().find(|c| c.kind() != SyntaxKind::NODE_ATTRPATH);
-                    
+                    let value_node = child
+                        .children()
+                        .find(|c| c.kind() != SyntaxKind::NODE_ATTRPATH);
+
                     if path_text == "enable" {
                         found_enable = true;
                         if let Some(val_child) = value_node {
@@ -515,15 +549,22 @@ impl NixConfig {
     /// Extract value and determine the property type from a value node
     fn extract_property_value(&self, node: &SyntaxNode) -> (String, PropertyType) {
         let text = node.text().to_string().trim().to_string();
-        
+
         match node.kind() {
             SyntaxKind::NODE_LITERAL => {
                 // Check if it's a string, int, or path
                 if text.starts_with('"') || text.starts_with("''") {
-                    (text.trim_matches('"').trim_start_matches("''").trim_end_matches("''").to_string(), PropertyType::String)
+                    (
+                        text.trim_matches('"')
+                            .trim_start_matches("''")
+                            .trim_end_matches("''")
+                            .to_string(),
+                        PropertyType::String,
+                    )
                 } else if text.parse::<i64>().is_ok() {
                     (text, PropertyType::Int)
-                } else if text.starts_with('/') || text.starts_with("./") || text.starts_with("~/") {
+                } else if text.starts_with('/') || text.starts_with("./") || text.starts_with("~/")
+                {
                     (text, PropertyType::Path)
                 } else {
                     (text, PropertyType::Expression)
@@ -537,18 +578,10 @@ impl NixConfig {
                     (text, PropertyType::Expression)
                 }
             }
-            SyntaxKind::NODE_STRING => {
-                (text.trim_matches('"').to_string(), PropertyType::String)
-            }
-            SyntaxKind::NODE_LIST => {
-                (text, PropertyType::List)
-            }
-            SyntaxKind::NODE_ATTR_SET => {
-                (text, PropertyType::AttrSet)
-            }
-            _ => {
-                (text, PropertyType::Expression)
-            }
+            SyntaxKind::NODE_STRING => (text.trim_matches('"').to_string(), PropertyType::String),
+            SyntaxKind::NODE_LIST => (text, PropertyType::List),
+            SyntaxKind::NODE_ATTR_SET => (text, PropertyType::AttrSet),
+            _ => (text, PropertyType::Expression),
         }
     }
 
@@ -562,7 +595,7 @@ impl NixConfig {
                 }
             }
         }
-        
+
         // Handle direct list
         if node.kind() == SyntaxKind::NODE_LIST {
             self.extract_packages_from_list(node);
@@ -574,7 +607,7 @@ impl NixConfig {
         let list_start: usize = list_node.text_range().start().into();
         let list_end: usize = list_node.text_range().end().into();
         let list_text = &self.content[list_start..list_end];
-        
+
         // First, extract active packages from AST
         for child in list_node.children() {
             match child.kind() {
@@ -585,7 +618,10 @@ impl NixConfig {
                         entry_type: EntryType::Package,
                         enabled: true,
                         has_extra_config: false,
-                        text_range: (child.text_range().start().into(), child.text_range().end().into()),
+                        text_range: (
+                            child.text_range().start().into(),
+                            child.text_range().end().into(),
+                        ),
                         properties: Vec::new(),
                     });
                 }
@@ -598,7 +634,10 @@ impl NixConfig {
                             entry_type: EntryType::Package,
                             enabled: true,
                             has_extra_config: false,
-                            text_range: (child.text_range().start().into(), child.text_range().end().into()),
+                            text_range: (
+                                child.text_range().start().into(),
+                                child.text_range().end().into(),
+                            ),
                             properties: Vec::new(),
                         });
                     }
@@ -606,19 +645,19 @@ impl NixConfig {
                 _ => {}
             }
         }
-        
+
         // Now scan for commented-out packages
-        // Look for patterns like "#  package-name" or "# package-name" 
+        // Look for patterns like "#  package-name" or "# package-name"
         // where package-name is a valid nix identifier (lowercase)
         for line in list_text.lines() {
             let trimmed = line.trim();
             if let Some(rest) = trimmed.strip_prefix('#') {
                 let candidate = rest.trim();
-                
+
                 // Check if the line starts with what looks like a package name
                 // Handle cases like "#  vim # comment" by taking just the first word
                 let first_word = candidate.split_whitespace().next().unwrap_or("");
-                
+
                 // Check if it looks like a package name (lowercase, valid chars)
                 if is_valid_package_name(first_word) {
                     // Calculate the position in the original content
@@ -628,7 +667,7 @@ impl NixConfig {
                         format!("# {}", first_word),
                         format!("#{}", first_word),
                     ];
-                    
+
                     for pattern in &patterns {
                         if let Some(offset) = self.content[list_start..list_end].find(pattern) {
                             let abs_start = list_start + offset;
@@ -649,10 +688,18 @@ impl NixConfig {
         }
     }
 
-    pub fn set_entry_enabled(&mut self, name: &str, entry_type: &EntryType, enabled: bool) -> Result<()> {
+    pub fn set_entry_enabled(
+        &mut self,
+        name: &str,
+        entry_type: &EntryType,
+        enabled: bool,
+    ) -> Result<()> {
         // Find the entry
-        let entry_exists = self.entries.iter().any(|e| e.name == name && &e.entry_type == entry_type);
-        
+        let entry_exists = self
+            .entries
+            .iter()
+            .any(|e| e.name == name && &e.entry_type == entry_type);
+
         if entry_exists {
             match entry_type {
                 EntryType::Program | EntryType::Service => {
@@ -667,7 +714,12 @@ impl NixConfig {
         self.reparse()
     }
 
-    fn toggle_enable_entry(&mut self, name: &str, entry_type: &EntryType, enabled: bool) -> Result<()> {
+    fn toggle_enable_entry(
+        &mut self,
+        name: &str,
+        entry_type: &EntryType,
+        enabled: bool,
+    ) -> Result<()> {
         if matches!(entry_type, EntryType::Package) {
             return Ok(());
         }
@@ -694,19 +746,28 @@ impl NixConfig {
         // This is a simplified approach - for complex cases we'd need more sophisticated editing
         let block_pattern_true = format!("enable = true");
         let block_pattern_false = format!("enable = false");
-        
+
         // Find the entry's text range and modify within it
-        if let Some(entry) = self.entries.iter().find(|e| e.name == name && &e.entry_type == entry_type) {
+        if let Some(entry) = self
+            .entries
+            .iter()
+            .find(|e| e.name == name && &e.entry_type == entry_type)
+        {
             let (start, end) = entry.text_range;
             let block_text = &self.content[start..end];
-            
+
             let new_block = if enabled {
                 block_text.replace(&block_pattern_false, &block_pattern_true)
             } else {
                 block_text.replace(&block_pattern_true, &block_pattern_false)
             };
-            
-            self.content = format!("{}{}{}", &self.content[..start], new_block, &self.content[end..]);
+
+            self.content = format!(
+                "{}{}{}",
+                &self.content[..start],
+                new_block,
+                &self.content[end..]
+            );
         }
 
         Ok(())
@@ -717,7 +778,7 @@ impl NixConfig {
             // Uncomment the package
             let commented = format!("# {}", name);
             let commented_space = format!("#  {}", name);
-            
+
             if self.content.contains(&commented_space) {
                 self.content = self.content.replacen(&commented_space, name, 1);
             } else if self.content.contains(&commented) {
@@ -726,7 +787,11 @@ impl NixConfig {
         } else {
             // Comment out the package - find it in the packages list context
             // Find the package entry
-            if let Some(entry) = self.entries.iter().find(|e| e.name == name && e.entry_type == EntryType::Package) {
+            if let Some(entry) = self
+                .entries
+                .iter()
+                .find(|e| e.name == name && e.entry_type == EntryType::Package)
+            {
                 let (start, end) = entry.text_range;
                 let before = &self.content[..start];
                 let after = &self.content[end..];
@@ -754,12 +819,13 @@ impl NixConfig {
     /// Use rnix AST to find the correct insertion point for a new entry
     fn insert_entry_using_ast(&mut self, new_line: &str, entry_type: &EntryType) -> Result<()> {
         // Get all entries of this type with their positions
-        let mut matching_entries: Vec<(usize, usize)> = self.entries
+        let mut matching_entries: Vec<(usize, usize)> = self
+            .entries
             .iter()
             .filter(|e| &e.entry_type == entry_type)
             .map(|e| e.text_range)
             .collect();
-        
+
         if matching_entries.is_empty() {
             // No existing entries of this type, insert before the final closing brace
             if let Some(pos) = self.content.rfind('}') {
@@ -767,14 +833,14 @@ impl NixConfig {
             }
             return Ok(());
         }
-        
+
         // Sort by start position
         matching_entries.sort_by_key(|(start, _)| *start);
-        
+
         // Find the end of the first contiguous group
         // Entries are contiguous if there's no blank line between them
         let mut group_end = matching_entries[0].1;
-        
+
         for i in 1..matching_entries.len() {
             let (start, end) = matching_entries[i];
             // Check if there's a blank line (two consecutive newlines) between entries
@@ -785,10 +851,11 @@ impl NixConfig {
             }
             group_end = end;
         }
-        
+
         // Insert after the end of the first group
         // Find the next newline after group_end to insert on a new line
-        let insert_pos = self.content[group_end..].find('\n')
+        let insert_pos = self.content[group_end..]
+            .find('\n')
             .map(|p| group_end + p + 1)
             .unwrap_or(group_end);
         self.content.insert_str(insert_pos, new_line);
@@ -800,16 +867,20 @@ impl NixConfig {
     fn add_package_using_ast(&mut self, name: &str) -> Result<()> {
         let parse = rnix::Root::parse(&self.content);
         let root = parse.tree();
-        
+
         // Find environment.systemPackages list
         if let Some(list_range) = self.find_packages_list(root.syntax()) {
             // Insert after the opening bracket
             let insert_pos = list_range.0 + 1;
             let indent = "\n    ";
-            self.content.insert_str(insert_pos, &format!("{}{}", indent, name));
+            self.content
+                .insert_str(insert_pos, &format!("{}{}", indent, name));
         } else {
             // No systemPackages exists, create it before the final closing brace
-            let new_block = format!("\n  environment.systemPackages = with pkgs; [\n    {}\n  ];\n", name);
+            let new_block = format!(
+                "\n  environment.systemPackages = with pkgs; [\n    {}\n  ];\n",
+                name
+            );
             if let Some(pos) = self.content.rfind('}') {
                 self.content.insert_str(pos, &new_block);
             }
@@ -822,7 +893,10 @@ impl NixConfig {
     fn find_packages_list(&self, node: &SyntaxNode) -> Option<(usize, usize)> {
         for child in node.children() {
             if child.kind() == SyntaxKind::NODE_ATTRPATH_VALUE {
-                if let Some(attrpath) = child.children().find(|c| c.kind() == SyntaxKind::NODE_ATTRPATH) {
+                if let Some(attrpath) = child
+                    .children()
+                    .find(|c| c.kind() == SyntaxKind::NODE_ATTRPATH)
+                {
                     let path_text = self.get_attrpath_text(&attrpath);
                     if path_text == "environment.systemPackages" {
                         // Found it! Now find the list node
@@ -878,34 +952,51 @@ impl NixConfig {
     }
 
     /// Find the text range of a property within an entry
-    fn find_property_range(&self, entry_name: &str, entry_type: &EntryType, property_name: &str) -> Option<(usize, usize)> {
-        self.get_entry(entry_name, entry_type)
-            .and_then(|entry| {
-                entry.properties.iter()
-                    .find(|p| p.name == property_name)
-                    .map(|p| p.text_range)
-            })
+    fn find_property_range(
+        &self,
+        entry_name: &str,
+        entry_type: &EntryType,
+        property_name: &str,
+    ) -> Option<(usize, usize)> {
+        self.get_entry(entry_name, entry_type).and_then(|entry| {
+            entry
+                .properties
+                .iter()
+                .find(|p| p.name == property_name)
+                .map(|p| p.text_range)
+        })
     }
 
     /// Set a property value for an entry
-    pub fn set_property(&mut self, entry_name: &str, entry_type: &EntryType, property_name: &str, new_value: &str) -> Result<()> {
+    pub fn set_property(
+        &mut self,
+        entry_name: &str,
+        entry_type: &EntryType,
+        property_name: &str,
+        new_value: &str,
+    ) -> Result<()> {
         let property_range = self.find_property_range(entry_name, entry_type, property_name);
 
         if let Some((start, end)) = property_range {
             // Replace the entire property line
             let old_text = &self.content[start..end];
-            
+
             // Parse the old text to find just the value part
-            // Format is typically: "propertyName = value;" 
+            // Format is typically: "propertyName = value;"
             if let Some(eq_pos) = old_text.find('=') {
                 let before_eq = &old_text[..=eq_pos];
                 // Format the new value appropriately
                 let formatted_value = self.format_property_value(new_value);
                 // Make sure to include the semicolon
                 let new_text = format!("{} {};", before_eq, formatted_value);
-                
-                self.content = format!("{}{}{}", &self.content[..start], new_text, &self.content[end..]);
-                
+
+                self.content = format!(
+                    "{}{}{}",
+                    &self.content[..start],
+                    new_text,
+                    &self.content[end..]
+                );
+
                 return self.reparse();
             }
         }
@@ -914,14 +1005,24 @@ impl NixConfig {
     }
 
     /// Add a new property to an entry
-    pub fn add_property(&mut self, entry_name: &str, entry_type: &EntryType, property_name: &str, value: &str, _property_type: &PropertyType) -> Result<()> {
+    pub fn add_property(
+        &mut self,
+        entry_name: &str,
+        entry_type: &EntryType,
+        property_name: &str,
+        value: &str,
+        _property_type: &PropertyType,
+    ) -> Result<()> {
         // Find the entry
-        let entry = self.entries.iter().find(|e| e.name == entry_name && &e.entry_type == entry_type);
-        
+        let entry = self
+            .entries
+            .iter()
+            .find(|e| e.name == entry_name && &e.entry_type == entry_type);
+
         if let Some(entry) = entry {
             let (start, end) = entry.text_range;
             let entry_text = &self.content[start..end];
-            
+
             // Check if this is a block style (has braces) or simple enable style
             if entry_text.contains('{') {
                 // Block style: insert before the closing brace
@@ -936,18 +1037,27 @@ impl NixConfig {
                 if matches!(entry_type, EntryType::Package) {
                     return Ok(()); // Packages don't have properties
                 }
-                
+
                 let formatted_value = self.format_property_value(value);
                 let enabled = if entry.enabled { "true" } else { "false" };
                 let new_block = format!(
                     "{}.{} = {{\n    enable = {};\n    {} = {};\n  }};",
-                    entry_type.prefix(), entry_name, enabled, property_name, formatted_value
+                    entry_type.prefix(),
+                    entry_name,
+                    enabled,
+                    property_name,
+                    formatted_value
                 );
-                
+
                 // Replace the old simple style with block style
-                self.content = format!("{}{}{}", &self.content[..start], new_block, &self.content[end..]);
+                self.content = format!(
+                    "{}{}{}",
+                    &self.content[..start],
+                    new_block,
+                    &self.content[end..]
+                );
             }
-            
+
             return self.reparse();
         }
 
@@ -955,17 +1065,32 @@ impl NixConfig {
     }
 
     /// Delete a property from an entry
-    pub fn delete_property(&mut self, entry_name: &str, entry_type: &EntryType, property_name: &str) -> Result<()> {
+    pub fn delete_property(
+        &mut self,
+        entry_name: &str,
+        entry_type: &EntryType,
+        property_name: &str,
+    ) -> Result<()> {
         let property_range = self.find_property_range(entry_name, entry_type, property_name);
 
         if let Some((start, end)) = property_range {
             // Find the start of the line (for proper deletion)
-            let line_start = self.content[..start].rfind('\n').map(|p| p + 1).unwrap_or(start);
+            let line_start = self.content[..start]
+                .rfind('\n')
+                .map(|p| p + 1)
+                .unwrap_or(start);
             // Find the end of the line (including newline)
-            let line_end = self.content[end..].find('\n').map(|p| end + p + 1).unwrap_or(end);
-            
-            self.content = format!("{}{}", &self.content[..line_start], &self.content[line_end..]);
-            
+            let line_end = self.content[end..]
+                .find('\n')
+                .map(|p| end + p + 1)
+                .unwrap_or(end);
+
+            self.content = format!(
+                "{}{}",
+                &self.content[..line_start],
+                &self.content[line_end..]
+            );
+
             return self.reparse();
         }
 
@@ -978,23 +1103,24 @@ impl NixConfig {
         if value == "true" || value == "false" {
             return value.to_string();
         }
-        
+
         // Check if it's a number
         if value.parse::<i64>().is_ok() {
             return value.to_string();
         }
-        
+
         // Check if it's already a list or attrset
-        if (value.starts_with('[') && value.ends_with(']')) ||
-           (value.starts_with('{') && value.ends_with('}')) {
+        if (value.starts_with('[') && value.ends_with(']'))
+            || (value.starts_with('{') && value.ends_with('}'))
+        {
             return value.to_string();
         }
-        
+
         // Check if it's a path
         if value.starts_with('/') || value.starts_with("./") || value.starts_with("~/") {
             return value.to_string();
         }
-        
+
         // Otherwise, treat as string and quote it
         format!("\"{}\"", value.replace('\\', "\\\\").replace('"', "\\\""))
     }
@@ -1071,17 +1197,30 @@ mod tests {
         let neovim = config.entries.iter().find(|e| e.name == "neovim");
         assert!(neovim.is_some());
         let neovim = neovim.unwrap();
-        
+
         // Should have 3 properties (excluding 'enable')
         assert_eq!(neovim.properties.len(), 3);
-        
+
         // Check properties exist
-        assert!(neovim.properties.iter().any(|p| p.name == "defaultEditor" && p.value == "true"));
-        assert!(neovim.properties.iter().any(|p| p.name == "viAlias" && p.value == "true"));
-        assert!(neovim.properties.iter().any(|p| p.name == "vimAlias" && p.value == "false"));
-        
+        assert!(neovim
+            .properties
+            .iter()
+            .any(|p| p.name == "defaultEditor" && p.value == "true"));
+        assert!(neovim
+            .properties
+            .iter()
+            .any(|p| p.name == "viAlias" && p.value == "true"));
+        assert!(neovim
+            .properties
+            .iter()
+            .any(|p| p.name == "vimAlias" && p.value == "false"));
+
         // Check property types
-        let default_editor = neovim.properties.iter().find(|p| p.name == "defaultEditor").unwrap();
+        let default_editor = neovim
+            .properties
+            .iter()
+            .find(|p| p.name == "defaultEditor")
+            .unwrap();
         assert_eq!(default_editor.property_type, PropertyType::Bool);
     }
 
@@ -1107,7 +1246,7 @@ mod tests {
         let nginx = config.entries.iter().find(|e| e.name == "nginx");
         assert!(nginx.is_some());
         let nginx = nginx.unwrap();
-        
+
         // Check string property
         let user_prop = nginx.properties.iter().find(|p| p.name == "user");
         assert!(user_prop.is_some());
@@ -1135,7 +1274,11 @@ mod tests {
         };
         config.parse().unwrap();
 
-        let packages: Vec<_> = config.entries.iter().filter(|e| e.entry_type == EntryType::Package).collect();
+        let packages: Vec<_> = config
+            .entries
+            .iter()
+            .filter(|e| e.entry_type == EntryType::Package)
+            .collect();
         assert_eq!(packages.len(), 3);
         assert!(packages.iter().any(|e| e.name == "git"));
         assert!(packages.iter().any(|e| e.name == "vim"));
@@ -1171,11 +1314,20 @@ mod tests {
 
         // The new entry should be inserted after neovim block, before services
         // Not at the very end after hyprland
-        let firefox_pos = config.content.find("programs.firefox.enable = true").unwrap();
+        let firefox_pos = config
+            .content
+            .find("programs.firefox.enable = true")
+            .unwrap();
         let neovim_end = config.content.find("};").unwrap() + 2; // end of neovim block
         let services_pos = config.content.find("services.openssh").unwrap();
-        
-        assert!(firefox_pos > neovim_end, "firefox should be after neovim block");
-        assert!(firefox_pos < services_pos, "firefox should be before services");
+
+        assert!(
+            firefox_pos > neovim_end,
+            "firefox should be after neovim block"
+        );
+        assert!(
+            firefox_pos < services_pos,
+            "firefox should be before services"
+        );
     }
 }

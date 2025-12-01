@@ -1,12 +1,12 @@
 use anyhow::{Context, Result};
+use serde::Deserialize;
 use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 use std::process::Command;
-use std::time::{Duration, SystemTime};
-use serde::Deserialize;
 use std::sync::mpsc;
 use std::thread;
+use std::time::{Duration, SystemTime};
 
 const CACHE_MAX_AGE: Duration = Duration::from_secs(7 * 24 * 60 * 60); // 1 week
 const API_URL: &str = "https://search.nixos.org/backend/latest-44-nixos-unstable/_search";
@@ -71,10 +71,10 @@ impl HttpCache {
         let cache_dir = dirs::cache_dir()
             .unwrap_or_else(|| PathBuf::from("/tmp"))
             .join("nixxed");
-        
+
         // Create cache directory if it doesn't exist
         let _ = fs::create_dir_all(&cache_dir);
-        
+
         HttpCache { cache_dir }
     }
 
@@ -101,18 +101,18 @@ impl HttpCache {
         // Use a hash of the request body as filename
         use std::collections::hash_map::DefaultHasher;
         use std::hash::{Hash, Hasher};
-        
+
         let mut hasher = DefaultHasher::new();
         request_body.hash(&mut hasher);
         let hash = hasher.finish();
-        
+
         self.cache_dir.join(format!("{:x}.json", hash))
     }
 
     /// Try to get a cached response
     fn get(&self, request_body: &str) -> Option<String> {
         let path = self.cache_key(request_body);
-        
+
         if let Ok(metadata) = fs::metadata(&path) {
             // Check if cache is still valid
             if let Ok(modified) = metadata.modified() {
@@ -149,7 +149,7 @@ impl NixSearcher {
         let http_cache = HttpCache::new();
         // Clean up old cache entries on startup
         http_cache.cleanup_old_entries();
-        
+
         NixSearcher {
             cache: HashMap::new(),
             http_cache,
@@ -216,7 +216,9 @@ impl NixSearcher {
                 Err(mpsc::TryRecvError::Disconnected) => {
                     self.receiver = None;
                     self.current_query = None;
-                    Some(SearchMessage::Error("Search thread disconnected".to_string()))
+                    Some(SearchMessage::Error(
+                        "Search thread disconnected".to_string(),
+                    ))
                 }
             }
         } else {
@@ -247,7 +249,7 @@ impl NixSearcher {
     /// Returns true if the package exists in nixpkgs
     pub fn verify_package_exists(&self, package_name: &str) -> bool {
         let cache_dir = self.http_cache.cache_dir.clone();
-        
+
         // Do a synchronous search for the exact package name
         if let Ok(results) = run_nix_search_cached(package_name, &cache_dir) {
             // Check for exact match
@@ -312,15 +314,18 @@ fn build_search_body(query: &str) -> String {
                 ]
             }
         }
-    }).to_string()
+    })
+    .to_string()
 }
 
 fn run_nix_search_cached(query: &str, cache_dir: &PathBuf) -> Result<Vec<SearchResult>> {
     let search_body = build_search_body(query);
-    
+
     // Create a temporary HttpCache for this thread
-    let http_cache = HttpCache { cache_dir: cache_dir.clone() };
-    
+    let http_cache = HttpCache {
+        cache_dir: cache_dir.clone(),
+    };
+
     // Check HTTP cache first
     let response = if let Some(cached) = http_cache.get(&search_body) {
         cached
@@ -329,22 +334,26 @@ fn run_nix_search_cached(query: &str, cache_dir: &PathBuf) -> Result<Vec<SearchR
         let output = Command::new("curl")
             .args([
                 "-s",
-                "-X", "POST",
+                "-X",
+                "POST",
                 API_URL,
-                "-H", "Content-Type: application/json",
-                "-H", &format!("Authorization: {}", API_AUTH),
-                "-d", &search_body,
+                "-H",
+                "Content-Type: application/json",
+                "-H",
+                &format!("Authorization: {}", API_AUTH),
+                "-d",
+                &search_body,
             ])
             .output()
             .context("Failed to run curl command")?;
 
         let response = String::from_utf8_lossy(&output.stdout).to_string();
-        
+
         // Cache the response
         if !response.is_empty() && !response.contains("\"error\"") {
             http_cache.set(&search_body, &response);
         }
-        
+
         response
     };
 
@@ -359,7 +368,7 @@ fn run_nix_search_cached(query: &str, cache_dir: &PathBuf) -> Result<Vec<SearchR
 fn calculate_match_score(name: &str, query: &str) -> u32 {
     let name_lower = name.to_lowercase();
     let query_lower = query.to_lowercase();
-    
+
     if name_lower == query_lower {
         // Exact match - highest priority
         1000
@@ -378,17 +387,19 @@ fn calculate_match_score(name: &str, query: &str) -> u32 {
 }
 
 fn parse_elastic_response(output: &str, query: &str) -> Result<Vec<SearchResult>> {
-    let response: ElasticResponse = serde_json::from_str(output)
-        .context("Failed to parse search response")?;
+    let response: ElasticResponse =
+        serde_json::from_str(output).context("Failed to parse search response")?;
 
     let mut results = Vec::new();
 
     for (api_order, hit) in response.hits.hits.into_iter().enumerate() {
         let source = hit.source;
-        let name = source.package_pname
+        let name = source
+            .package_pname
             .unwrap_or_else(|| source.package_attr_name.clone());
         let description = source.package_description.unwrap_or_default();
-        let has_programs = source.package_programs
+        let has_programs = source
+            .package_programs
             .map(|p| !p.is_empty())
             .unwrap_or(false);
 
@@ -401,18 +412,20 @@ fn parse_elastic_response(output: &str, query: &str) -> Result<Vec<SearchResult>
 
         // Calculate local match score
         let match_score = calculate_match_score(&name, query);
-        
-        results.push((SearchResult {
-            name,
-            description,
-            category,
-        }, match_score, api_order));
+
+        results.push((
+            SearchResult {
+                name,
+                description,
+                category,
+            },
+            match_score,
+            api_order,
+        ));
     }
 
     // Sort by: match_score (desc), then api_order (asc) for tie-breaking
-    results.sort_by(|a, b| {
-        b.1.cmp(&a.1).then_with(|| a.2.cmp(&b.2))
-    });
+    results.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.2.cmp(&b.2)));
 
     // Extract just the SearchResult
     Ok(results.into_iter().map(|(r, _, _)| r).collect())

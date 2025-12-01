@@ -10,21 +10,25 @@ use ratatui::{
     Frame,
 };
 
-use crate::app::App;
 use crate::app::types::Focus;
 use crate::app::ui::widgets::draw_list;
+use crate::app::App;
 
 impl App {
     pub fn draw(&mut self, frame: &mut Frame) {
         let area = frame.area();
-        
+
         // Fixed layout: 3 lines for search, 2 lines for help+status at bottom
         // Rest goes to the scrollable center columns
         let search_height = 3;
         let bottom_height = 2; // One for help, one for status
-        
-        let margin = if area.width < 40 || area.height < 10 { 0 } else { 1 };
-        
+
+        let margin = if area.width < 40 || area.height < 10 {
+            0
+        } else {
+            1
+        };
+
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .margin(margin)
@@ -57,7 +61,7 @@ impl App {
 
     fn draw_rebuild_prompt(&self, frame: &mut Frame) {
         let area = frame.area();
-        
+
         let popup_width = 60.min(area.width.saturating_sub(4));
         let popup_height = 9;
         let popup_x = (area.width.saturating_sub(popup_width)) / 2;
@@ -227,15 +231,20 @@ impl App {
         // Help line with Save highlighted when dirty
         let help_style = Style::default().fg(Color::DarkGray);
         let save_style = if self.is_dirty {
-            Style::default().fg(Color::Yellow).add_modifier(ratatui::style::Modifier::BOLD | ratatui::style::Modifier::UNDERLINED)
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(ratatui::style::Modifier::BOLD | ratatui::style::Modifier::UNDERLINED)
         } else {
             help_style
         };
-        
+
         let help_line = Line::from(vec![
             Span::styled("F1: Help | Ctrl+S: ", help_style),
             Span::styled(if self.is_dirty { "Save*" } else { "Save" }, save_style),
-            Span::styled(" | Ctrl+Q: Quit | Tab: Switch | Space: Toggle | e: Edit props", help_style),
+            Span::styled(
+                " | Ctrl+Q: Quit | Tab: Switch | Space: Toggle | e: Edit props",
+                help_style,
+            ),
         ]);
         let help_bar = Paragraph::new(help_line);
         frame.render_widget(help_bar, lines[0]);

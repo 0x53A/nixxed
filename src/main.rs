@@ -18,7 +18,10 @@ fn main() -> Result<()> {
     // Find the NixOS configuration file
     let config_path = find_config_path()?;
 
-    println!("Loading NixOS configuration from: {}", config_path.display());
+    println!(
+        "Loading NixOS configuration from: {}",
+        config_path.display()
+    );
 
     // Load the configuration
     let config = NixConfig::load(&config_path)?;
@@ -65,7 +68,7 @@ fn run_app(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut App)
 
         // Poll for background search results
         app.poll_search();
-        
+
         terminal.draw(|f| app.draw(f))?;
 
         if event::poll(std::time::Duration::from_millis(100))? {
@@ -88,7 +91,10 @@ fn run_app(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut App)
 }
 
 /// Run nixos-rebuild switch with live output by temporarily leaving the TUI
-fn run_nixos_rebuild(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut App) -> Result<()> {
+fn run_nixos_rebuild(
+    terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
+    app: &mut App,
+) -> Result<()> {
     // Leave the alternate screen to show live output
     disable_raw_mode()?;
     execute!(
@@ -117,7 +123,10 @@ fn run_nixos_rebuild(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app:
                 (true, "Rebuild completed successfully!".to_string())
             } else {
                 let code = exit_status.code().unwrap_or(-1);
-                println!("\n\x1b[1;31m✗ Rebuild failed with exit code {}\x1b[0m", code);
+                println!(
+                    "\n\x1b[1;31m✗ Rebuild failed with exit code {}\x1b[0m",
+                    code
+                );
                 (false, format!("Rebuild failed with exit code {}", code))
             }
         }
@@ -128,7 +137,7 @@ fn run_nixos_rebuild(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app:
     };
 
     println!("\n\x1b[90mPress Enter to return to nixxed...\x1b[0m");
-    
+
     // Wait for user to press Enter
     let mut input = String::new();
     let _ = std::io::stdin().read_line(&mut input);
@@ -198,4 +207,3 @@ fn find_config_path() -> Result<PathBuf> {
          nixxed /path/to/configuration.nix"
     )
 }
-

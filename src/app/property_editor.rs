@@ -1,9 +1,9 @@
 use anyhow::Result;
 use crossterm::event::KeyCode;
 
-use crate::app::App;
 use crate::app::types::{ListType, PropertyEditState};
 use crate::app::ui::widgets::apply_look_ahead_scroll;
+use crate::app::App;
 use crate::config_parser::{EntryType, PropertyType};
 
 impl App {
@@ -42,17 +42,24 @@ impl App {
         };
 
         if !in_config {
-            self.status_message = Some("Add entry to config first before editing properties".to_string());
+            self.status_message =
+                Some("Add entry to config first before editing properties".to_string());
             return Ok(());
         }
 
         // Fetch available options from schema
-        let configured_props = self.config.get_entry(&name, &entry_type)
+        let configured_props = self
+            .config
+            .get_entry(&name, &entry_type)
             .map(|e| e.properties.clone())
             .unwrap_or_default();
-        self.prop_editor.available_options = self.schema_cache.get_available_options(&entry_type, &name, &configured_props);
+        self.prop_editor.available_options =
+            self.schema_cache
+                .get_available_options(&entry_type, &name, &configured_props);
         // Sort available options by name
-        self.prop_editor.available_options.sort_by(|a, b| a.0.cmp(&b.0));
+        self.prop_editor
+            .available_options
+            .sort_by(|a, b| a.0.cmp(&b.0));
 
         // Set up property editor state
         self.prop_editor.entry = Some((name, entry_type));
@@ -80,12 +87,14 @@ impl App {
         let len = if self.prop_editor.showing_available {
             self.prop_editor.available_options.len()
         } else {
-            self.prop_editor.entry.as_ref()
+            self.prop_editor
+                .entry
+                .as_ref()
                 .and_then(|(name, entry_type)| self.config.get_entry(name, entry_type))
                 .map(|e| e.properties.len())
                 .unwrap_or(0)
         };
-        
+
         if len == 0 {
             return;
         }
@@ -97,11 +106,23 @@ impl App {
             current.saturating_sub((-delta) as usize)
         };
         self.prop_editor.list_state.select(Some(new));
-        
+
         // Apply look-ahead scrolling
         let viewport_height = self.get_property_list_viewport_height();
-        let direction = if delta > 0 { 1 } else if delta < 0 { -1 } else { 0 };
-        apply_look_ahead_scroll(new, len, viewport_height, &mut self.prop_editor.list_state, direction);
+        let direction = if delta > 0 {
+            1
+        } else if delta < 0 {
+            -1
+        } else {
+            0
+        };
+        apply_look_ahead_scroll(
+            new,
+            len,
+            viewport_height,
+            &mut self.prop_editor.list_state,
+            direction,
+        );
     }
 
     /// Handle keyboard input in the property editor
@@ -128,7 +149,8 @@ impl App {
                     edit_state.cursor_pos = edit_state.cursor_pos.saturating_sub(1);
                 }
                 KeyCode::Right => {
-                    edit_state.cursor_pos = (edit_state.cursor_pos + 1).min(edit_state.edit_buffer.len());
+                    edit_state.cursor_pos =
+                        (edit_state.cursor_pos + 1).min(edit_state.edit_buffer.len());
                 }
                 KeyCode::Home => {
                     edit_state.cursor_pos = 0;
@@ -141,16 +163,24 @@ impl App {
                     let entry_name = edit_state.entry_name.clone();
                     let entry_type = edit_state.entry_type.clone();
                     let new_value = edit_state.edit_buffer.clone();
-                    
+
                     if let Some((ref name, ref etype)) = self.prop_editor.entry {
                         if let Some(entry) = self.config.get_entry(name, etype) {
                             if edit_state.property_index < entry.properties.len() {
-                                let prop_name = entry.properties[edit_state.property_index].name.clone();
-                                if let Err(e) = self.config.set_property(&entry_name, &entry_type, &prop_name, &new_value) {
-                                    self.status_message = Some(format!("Error saving property: {}", e));
+                                let prop_name =
+                                    entry.properties[edit_state.property_index].name.clone();
+                                if let Err(e) = self.config.set_property(
+                                    &entry_name,
+                                    &entry_type,
+                                    &prop_name,
+                                    &new_value,
+                                ) {
+                                    self.status_message =
+                                        Some(format!("Error saving property: {}", e));
                                 } else {
                                     self.is_dirty = true;
-                                    self.status_message = Some(format!("Updated {} = {}", prop_name, new_value));
+                                    self.status_message =
+                                        Some(format!("Updated {} = {}", prop_name, new_value));
                                     self.load_from_config();
                                 }
                             }
@@ -172,10 +202,14 @@ impl App {
             match code {
                 KeyCode::Char(c) => {
                     if self.prop_editor.editing_name {
-                        self.prop_editor.new_name.insert(self.prop_editor.new_cursor, c);
+                        self.prop_editor
+                            .new_name
+                            .insert(self.prop_editor.new_cursor, c);
                         self.prop_editor.new_cursor += 1;
                     } else {
-                        self.prop_editor.new_value.insert(self.prop_editor.new_cursor, c);
+                        self.prop_editor
+                            .new_value
+                            .insert(self.prop_editor.new_cursor, c);
                         self.prop_editor.new_cursor += 1;
                     }
                 }
@@ -183,12 +217,16 @@ impl App {
                     if self.prop_editor.editing_name {
                         if self.prop_editor.new_cursor > 0 {
                             self.prop_editor.new_cursor -= 1;
-                            self.prop_editor.new_name.remove(self.prop_editor.new_cursor);
+                            self.prop_editor
+                                .new_name
+                                .remove(self.prop_editor.new_cursor);
                         }
                     } else {
                         if self.prop_editor.new_cursor > 0 {
                             self.prop_editor.new_cursor -= 1;
-                            self.prop_editor.new_value.remove(self.prop_editor.new_cursor);
+                            self.prop_editor
+                                .new_value
+                                .remove(self.prop_editor.new_cursor);
                         }
                     }
                 }
@@ -203,22 +241,35 @@ impl App {
                 }
                 KeyCode::Enter => {
                     // Save the new property
-                    if !self.prop_editor.new_name.is_empty() && !self.prop_editor.new_value.is_empty() {
+                    if !self.prop_editor.new_name.is_empty()
+                        && !self.prop_editor.new_value.is_empty()
+                    {
                         if let Some((ref name, ref entry_type)) = self.prop_editor.entry {
                             // Determine property type from value
-                            let prop_type = if self.prop_editor.new_value == "true" || self.prop_editor.new_value == "false" {
+                            let prop_type = if self.prop_editor.new_value == "true"
+                                || self.prop_editor.new_value == "false"
+                            {
                                 PropertyType::Bool
                             } else if self.prop_editor.new_value.parse::<i64>().is_ok() {
                                 PropertyType::Int
                             } else {
                                 PropertyType::String
                             };
-                            
-                            if let Err(e) = self.config.add_property(name, entry_type, &self.prop_editor.new_name, &self.prop_editor.new_value, &prop_type) {
+
+                            if let Err(e) = self.config.add_property(
+                                name,
+                                entry_type,
+                                &self.prop_editor.new_name,
+                                &self.prop_editor.new_value,
+                                &prop_type,
+                            ) {
                                 self.status_message = Some(format!("Error adding property: {}", e));
                             } else {
                                 self.is_dirty = true;
-                                self.status_message = Some(format!("Added {} = {}", self.prop_editor.new_name, self.prop_editor.new_value));
+                                self.status_message = Some(format!(
+                                    "Added {} = {}",
+                                    self.prop_editor.new_name, self.prop_editor.new_value
+                                ));
                                 self.load_from_config();
                             }
                         }
@@ -251,7 +302,8 @@ impl App {
                 self.prop_editor.list_state.select(Some(0));
                 *self.prop_editor.list_state.offset_mut() = 0; // Reset scroll position
                 if self.prop_editor.showing_available {
-                    self.status_message = Some("Showing available options (not yet configured)".to_string());
+                    self.status_message =
+                        Some("Showing available options (not yet configured)".to_string());
                 } else {
                     self.status_message = Some("Showing configured properties".to_string());
                 }
@@ -322,17 +374,19 @@ impl App {
         if let Some(idx) = self.prop_editor.list_state.selected() {
             if idx < self.prop_editor.available_options.len() {
                 let (opt_name, opt_info) = self.prop_editor.available_options[idx].clone();
-                
+
                 if let Some((ref name, ref entry_type)) = self.prop_editor.entry {
                     // Use schema to get the property type
-                    let prop_type = if let Some(schema) = self.schema_cache.get_schema(entry_type, name) {
-                        schema.property_type_for(&opt_name)
-                    } else {
-                        PropertyType::Expression
-                    };
+                    let prop_type =
+                        if let Some(schema) = self.schema_cache.get_schema(entry_type, name) {
+                            schema.property_type_for(&opt_name)
+                        } else {
+                            PropertyType::Expression
+                        };
 
                     // Get default value or a sensible default based on type
-                    let default_value = opt_info.default
+                    let default_value = opt_info
+                        .default
                         .map(|v| match v {
                             serde_json::Value::Bool(b) => b.to_string(),
                             serde_json::Value::Number(n) => n.to_string(),
@@ -352,19 +406,28 @@ impl App {
                             _ => "null".to_string(),
                         });
 
-                    if let Err(e) = self.config.add_property(name, entry_type, &opt_name, &default_value, &prop_type) {
+                    if let Err(e) = self.config.add_property(
+                        name,
+                        entry_type,
+                        &opt_name,
+                        &default_value,
+                        &prop_type,
+                    ) {
                         self.status_message = Some(format!("Error adding property: {}", e));
                     } else {
                         self.is_dirty = true;
-                        self.status_message = Some(format!("Added {} = {}", opt_name, default_value));
+                        self.status_message =
+                            Some(format!("Added {} = {}", opt_name, default_value));
                         self.load_from_config();
-                        
+
                         // Remove from available options
                         self.prop_editor.available_options.remove(idx);
-                        
+
                         // Adjust selection
                         if !self.prop_editor.available_options.is_empty() {
-                            self.prop_editor.list_state.select(Some(idx.min(self.prop_editor.available_options.len() - 1)));
+                            self.prop_editor.list_state.select(Some(
+                                idx.min(self.prop_editor.available_options.len() - 1),
+                            ));
                         } else {
                             // Switch back to configured view
                             self.prop_editor.showing_available = false;
@@ -383,7 +446,12 @@ impl App {
             if let Some(entry) = self.config.get_entry(name, entry_type) {
                 if let Some(idx) = self.prop_editor.list_state.selected() {
                     if idx < entry.properties.len() {
-                        Some((name.clone(), entry_type.clone(), entry.properties[idx].name.clone(), idx))
+                        Some((
+                            name.clone(),
+                            entry_type.clone(),
+                            entry.properties[idx].name.clone(),
+                            idx,
+                        ))
                     } else {
                         None
                     }
@@ -404,20 +472,30 @@ impl App {
                 self.is_dirty = true;
                 self.status_message = Some(format!("Deleted property: {}", prop_name));
                 self.load_from_config();
-                
+
                 // Refresh available options (the deleted one should reappear)
-                let configured_props = self.config.get_entry(&name, &entry_type)
+                let configured_props = self
+                    .config
+                    .get_entry(&name, &entry_type)
                     .map(|e| e.properties.clone())
                     .unwrap_or_default();
-                self.prop_editor.available_options = self.schema_cache.get_available_options(&entry_type, &name, &configured_props);
-                self.prop_editor.available_options.sort_by(|a, b| a.0.cmp(&b.0));
-                
+                self.prop_editor.available_options =
+                    self.schema_cache
+                        .get_available_options(&entry_type, &name, &configured_props);
+                self.prop_editor
+                    .available_options
+                    .sort_by(|a, b| a.0.cmp(&b.0));
+
                 // Adjust selection
-                let new_len = self.config.get_entry(&name, &entry_type)
+                let new_len = self
+                    .config
+                    .get_entry(&name, &entry_type)
                     .map(|e| e.properties.len())
                     .unwrap_or(0);
                 if new_len > 0 {
-                    self.prop_editor.list_state.select(Some(idx.min(new_len - 1)));
+                    self.prop_editor
+                        .list_state
+                        .select(Some(idx.min(new_len - 1)));
                 } else {
                     self.prop_editor.list_state.select(None);
                 }

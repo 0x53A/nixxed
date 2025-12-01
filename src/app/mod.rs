@@ -58,10 +58,10 @@ impl App {
     pub fn new(mut config: NixConfig) -> Self {
         let searcher = NixSearcher::new();
         let schema_cache = SchemaCache::new();
-        
+
         // Verify that disabled packages actually exist in nixpkgs
         config.verify_packages(&searcher);
-        
+
         let mut app = App {
             config,
             searcher,
@@ -178,7 +178,13 @@ impl App {
                 if let Some(idx) = idx {
                     if idx < self.programs.len() {
                         let entry = &self.programs[idx];
-                        (EntryType::Program, idx, entry.name.clone(), entry.enabled, entry.in_config)
+                        (
+                            EntryType::Program,
+                            idx,
+                            entry.name.clone(),
+                            entry.enabled,
+                            entry.in_config,
+                        )
                     } else {
                         return Ok(());
                     }
@@ -191,7 +197,13 @@ impl App {
                 if let Some(idx) = idx {
                     if idx < self.services.len() {
                         let entry = &self.services[idx];
-                        (EntryType::Service, idx, entry.name.clone(), entry.enabled, entry.in_config)
+                        (
+                            EntryType::Service,
+                            idx,
+                            entry.name.clone(),
+                            entry.enabled,
+                            entry.in_config,
+                        )
                     } else {
                         return Ok(());
                     }
@@ -204,7 +216,13 @@ impl App {
                 if let Some(idx) = idx {
                     if idx < self.packages.len() {
                         let entry = &self.packages[idx];
-                        (EntryType::Package, idx, entry.name.clone(), entry.enabled, entry.in_config)
+                        (
+                            EntryType::Package,
+                            idx,
+                            entry.name.clone(),
+                            entry.enabled,
+                            entry.in_config,
+                        )
                     } else {
                         return Ok(());
                     }
@@ -218,20 +236,23 @@ impl App {
 
         if in_config {
             // Modify existing entry
-            if let Err(e) = self.config.set_entry_enabled(&name, &entry_type, new_enabled) {
+            if let Err(e) = self
+                .config
+                .set_entry_enabled(&name, &entry_type, new_enabled)
+            {
                 self.status_message = Some(format!("Error: {}", e));
                 return Ok(());
             }
-            
+
             self.is_dirty = true;
-            
+
             // Update the local entry
             match list_type {
                 types::ListType::Programs => self.programs[idx].enabled = new_enabled,
                 types::ListType::Services => self.services[idx].enabled = new_enabled,
                 types::ListType::Packages => self.packages[idx].enabled = new_enabled,
             }
-            
+
             self.status_message = Some(format!(
                 "{} {} {}",
                 if new_enabled { "Enabled" } else { "Disabled" },
@@ -248,9 +269,9 @@ impl App {
                 self.status_message = Some(format!("Error: {}", e));
                 return Ok(());
             }
-            
+
             self.is_dirty = true;
-            
+
             // Update the local entry
             match list_type {
                 types::ListType::Programs => {
@@ -266,7 +287,7 @@ impl App {
                     self.packages[idx].in_config = true;
                 }
             }
-            
+
             self.status_message = Some(format!(
                 "Added {} {}",
                 match entry_type {

@@ -1,8 +1,8 @@
-use std::collections::HashSet;
 use anyhow::Result;
+use std::collections::HashSet;
 
-use crate::app::App;
 use crate::app::types::ListEntry;
+use crate::app::App;
 use crate::config_parser::EntryType;
 use crate::search::{SearchCategory, SearchMessage, SearchResult};
 
@@ -51,17 +51,20 @@ impl App {
         self.search_results = results;
 
         // Get current config entries as a set for quick lookup
-        let config_programs: HashSet<String> = self.config
+        let config_programs: HashSet<String> = self
+            .config
             .get_entries_by_type(&EntryType::Program)
             .iter()
             .map(|e| e.name.clone())
             .collect();
-        let config_services: HashSet<String> = self.config
+        let config_services: HashSet<String> = self
+            .config
             .get_entries_by_type(&EntryType::Service)
             .iter()
             .map(|e| e.name.clone())
             .collect();
-        let config_packages: HashSet<String> = self.config
+        let config_packages: HashSet<String> = self
+            .config
             .get_entries_by_type(&EntryType::Package)
             .iter()
             .map(|e| e.name.clone())
@@ -158,13 +161,11 @@ impl App {
         }
 
         // Sort lists: config entries first (by name), then search results (by relevance)
-        let sort_fn = |a: &ListEntry, b: &ListEntry| {
-            match (a.in_config, b.in_config) {
-                (true, false) => std::cmp::Ordering::Less,
-                (false, true) => std::cmp::Ordering::Greater,
-                (true, true) => a.name.cmp(&b.name),
-                (false, false) => a.relevance_order.cmp(&b.relevance_order),
-            }
+        let sort_fn = |a: &ListEntry, b: &ListEntry| match (a.in_config, b.in_config) {
+            (true, false) => std::cmp::Ordering::Less,
+            (false, true) => std::cmp::Ordering::Greater,
+            (true, true) => a.name.cmp(&b.name),
+            (false, false) => a.relevance_order.cmp(&b.relevance_order),
         };
 
         self.programs.sort_by(sort_fn);

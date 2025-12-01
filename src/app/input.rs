@@ -1,9 +1,9 @@
 use anyhow::Result;
-use crossterm::event::{Event, KeyCode, KeyEventKind, KeyModifiers, MouseEventKind, MouseButton};
+use crossterm::event::{Event, KeyCode, KeyEventKind, KeyModifiers, MouseButton, MouseEventKind};
 
-use crate::app::App;
 use crate::app::types::{Focus, ListType};
 use crate::app::ui::widgets::apply_look_ahead_scroll;
+use crate::app::App;
 
 impl App {
     pub fn handle_event(&mut self, event: Event) -> Result<()> {
@@ -106,7 +106,9 @@ impl App {
                     let len = if self.prop_editor.showing_available {
                         self.prop_editor.available_options.len()
                     } else {
-                        self.prop_editor.entry.as_ref()
+                        self.prop_editor
+                            .entry
+                            .as_ref()
                             .and_then(|(name, entry_type)| self.config.get_entry(name, entry_type))
                             .map(|e| e.properties.len())
                             .unwrap_or(0)
@@ -134,7 +136,9 @@ impl App {
                 } else if self.programs_area.contains((x, y).into()) {
                     self.focus = Focus::Programs;
                     // Calculate which item was clicked (accounting for border and scroll offset)
-                    if y > self.programs_area.y && y < self.programs_area.y + self.programs_area.height - 1 {
+                    if y > self.programs_area.y
+                        && y < self.programs_area.y + self.programs_area.height - 1
+                    {
                         let scroll_offset = self.program_state.offset();
                         let clicked_idx = scroll_offset + (y - self.programs_area.y - 1) as usize;
                         if clicked_idx < self.programs.len() {
@@ -143,7 +147,9 @@ impl App {
                     }
                 } else if self.services_area.contains((x, y).into()) {
                     self.focus = Focus::Services;
-                    if y > self.services_area.y && y < self.services_area.y + self.services_area.height - 1 {
+                    if y > self.services_area.y
+                        && y < self.services_area.y + self.services_area.height - 1
+                    {
                         let scroll_offset = self.service_state.offset();
                         let clicked_idx = scroll_offset + (y - self.services_area.y - 1) as usize;
                         if clicked_idx < self.services.len() {
@@ -152,7 +158,9 @@ impl App {
                     }
                 } else if self.packages_area.contains((x, y).into()) {
                     self.focus = Focus::Packages;
-                    if y > self.packages_area.y && y < self.packages_area.y + self.packages_area.height - 1 {
+                    if y > self.packages_area.y
+                        && y < self.packages_area.y + self.packages_area.height - 1
+                    {
                         let scroll_offset = self.package_state.offset();
                         let clicked_idx = scroll_offset + (y - self.packages_area.y - 1) as usize;
                         if clicked_idx < self.packages.len() {
@@ -164,7 +172,9 @@ impl App {
             MouseEventKind::Down(MouseButton::Right) => {
                 // Right click toggles the item under cursor
                 if self.programs_area.contains((x, y).into()) {
-                    if y > self.programs_area.y && y < self.programs_area.y + self.programs_area.height - 1 {
+                    if y > self.programs_area.y
+                        && y < self.programs_area.y + self.programs_area.height - 1
+                    {
                         let scroll_offset = self.program_state.offset();
                         let clicked_idx = scroll_offset + (y - self.programs_area.y - 1) as usize;
                         if clicked_idx < self.programs.len() {
@@ -173,7 +183,9 @@ impl App {
                         }
                     }
                 } else if self.services_area.contains((x, y).into()) {
-                    if y > self.services_area.y && y < self.services_area.y + self.services_area.height - 1 {
+                    if y > self.services_area.y
+                        && y < self.services_area.y + self.services_area.height - 1
+                    {
                         let scroll_offset = self.service_state.offset();
                         let clicked_idx = scroll_offset + (y - self.services_area.y - 1) as usize;
                         if clicked_idx < self.services.len() {
@@ -182,7 +194,9 @@ impl App {
                         }
                     }
                 } else if self.packages_area.contains((x, y).into()) {
-                    if y > self.packages_area.y && y < self.packages_area.y + self.packages_area.height - 1 {
+                    if y > self.packages_area.y
+                        && y < self.packages_area.y + self.packages_area.height - 1
+                    {
                         let scroll_offset = self.package_state.offset();
                         let clicked_idx = scroll_offset + (y - self.packages_area.y - 1) as usize;
                         if clicked_idx < self.packages.len() {
@@ -331,7 +345,7 @@ impl App {
     pub(crate) fn move_selection(&mut self, delta: i32, list_type: &ListType) {
         // Calculate viewport height first to avoid borrow issues
         let viewport_height = self.get_list_viewport_height(list_type);
-        
+
         let (state, len) = match list_type {
             ListType::Programs => (&mut self.program_state, self.programs.len()),
             ListType::Services => (&mut self.service_state, self.services.len()),
@@ -350,9 +364,15 @@ impl App {
         };
 
         state.select(Some(new));
-        
+
         // Apply look-ahead scrolling
-        let direction = if delta > 0 { 1 } else if delta < 0 { -1 } else { 0 };
+        let direction = if delta > 0 {
+            1
+        } else if delta < 0 {
+            -1
+        } else {
+            0
+        };
         apply_look_ahead_scroll(new, len, viewport_height, state, direction);
     }
 
@@ -379,7 +399,11 @@ impl App {
                 }
             }
             KeyCode::Tab => {
-                self.rebuild_prompt.selected = if self.rebuild_prompt.selected == 0 { 1 } else { 0 };
+                self.rebuild_prompt.selected = if self.rebuild_prompt.selected == 0 {
+                    1
+                } else {
+                    0
+                };
             }
             _ => {}
         }

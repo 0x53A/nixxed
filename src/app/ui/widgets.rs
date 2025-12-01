@@ -3,7 +3,9 @@ use ratatui::{
     style::{Color, Modifier, Style},
     symbols::border,
     text::{Line, Span},
-    widgets::{Block, Borders, List, ListItem, ListState, Scrollbar, ScrollbarOrientation, ScrollbarState},
+    widgets::{
+        Block, Borders, List, ListItem, ListState, Scrollbar, ScrollbarOrientation, ScrollbarState,
+    },
     Frame,
 };
 
@@ -13,9 +15,9 @@ use crate::app::types::ListEntry;
 /// - 1-2 lines: thumb = 1 char
 /// - 3-4 lines: no decorators, thumb = 1 char  
 /// - 5+ lines: decorators, thumb proportional but at most n_lines - 4
-/// 
+///
 /// Move thumb 1 away from edge as soon as offset >= 1 (works for n_lines >= 3).
-/// 
+///
 /// Returns (content_length, position, use_decorators, viewport_for_thumb) for ScrollbarState
 pub fn calculate_scrollbar_position(
     viewport_start: usize,
@@ -23,17 +25,17 @@ pub fn calculate_scrollbar_position(
     visible_height: usize,
 ) -> (usize, usize, bool, usize) {
     let max_scroll = total_items.saturating_sub(visible_height);
-    
+
     // Determine decorator usage: 5+ lines
     let use_decorators = visible_height >= 5;
-    
+
     // Calculate track height (space for scrollbar after decorators)
     let track_height = if use_decorators {
         visible_height.saturating_sub(2) // -2 for ▲/▼ symbols
     } else {
         visible_height
     };
-    
+
     // Calculate viewport_for_thumb to control thumb size:
     // - 1-4 lines: thumb = 1 (use total_items as viewport to get minimal thumb)
     // - 5+ lines: thumb proportional, but track is at most n_lines - 4
@@ -53,11 +55,11 @@ pub fn calculate_scrollbar_position(
             (total_items * max_thumb) / track_height.max(1)
         }
     };
-    
+
     if max_scroll == 0 {
         return (1, 0, use_decorators, viewport_for_thumb.max(1));
     }
-    
+
     // "1 from edge" logic per spec: works for visible_height >= 3
     // This gives visual indication that there's more to scroll
     let position = if visible_height < 3 {
@@ -80,7 +82,7 @@ pub fn calculate_scrollbar_position(
             // Interpolate: scroll 1 -> pos 1, scroll max_scroll-1 -> pos max_scroll-1
             // Positions 2..max_scroll-2 are interpolated in between
             let middle_scroll_range = max_scroll - 2; // scroll positions 1 to max_scroll-1
-            let middle_pos_range = max_scroll - 2;    // visual positions 1 to max_scroll-1
+            let middle_pos_range = max_scroll - 2; // visual positions 1 to max_scroll-1
             let scroll_in_middle = viewport_start - 1; // 0-based within middle range
             let pos_in_middle = if middle_scroll_range == 0 {
                 0
@@ -90,13 +92,18 @@ pub fn calculate_scrollbar_position(
             1 + pos_in_middle.min(middle_pos_range)
         }
     };
-    
-    (max_scroll + 1, position, use_decorators, viewport_for_thumb.max(1))
+
+    (
+        max_scroll + 1,
+        position,
+        use_decorators,
+        viewport_for_thumb.max(1),
+    )
 }
 
 /// Apply look-ahead scrolling: try to show one item ahead of cursor direction
 /// This scrolls the viewport only when needed to show context ahead of movement.
-/// 
+///
 /// Arguments:
 /// - new_selection: the newly selected index
 /// - len: total number of items  
@@ -115,7 +122,7 @@ pub fn apply_look_ahead_scroll(
     }
 
     let current_offset = state.offset();
-    
+
     // If viewport can show all items, no scrolling needed
     if len <= viewport_height {
         *state.offset_mut() = 0;
@@ -132,7 +139,9 @@ pub fn apply_look_ahead_scroll(
         if new_selection < current_offset {
             *state.offset_mut() = new_selection;
         } else if new_selection >= current_offset + viewport_height {
-            *state.offset_mut() = (new_selection + 1).saturating_sub(viewport_height).min(max_offset);
+            *state.offset_mut() = (new_selection + 1)
+                .saturating_sub(viewport_height)
+                .min(max_offset);
         }
         return;
     }
@@ -181,7 +190,7 @@ pub fn apply_look_ahead_scroll(
                 // Above viewport - scroll so selection is near top with one above if possible
                 *state.offset_mut() = new_selection.saturating_sub(1);
             } else if new_selection >= current_offset + viewport_height {
-                // Below viewport - scroll so selection is near bottom with one below if possible  
+                // Below viewport - scroll so selection is near bottom with one below if possible
                 let desired_offset = (new_selection + 2).saturating_sub(viewport_height);
                 *state.offset_mut() = desired_offset.min(max_offset);
             }
@@ -267,15 +276,14 @@ pub fn draw_list(
         .highlight_symbol("▶ ");
 
     frame.render_stateful_widget(list, area, state);
-    
+
     // Draw scrollbar if there are more items than visible
     let visible_height = area.height.saturating_sub(2) as usize;
     if entries.len() > visible_height {
         let viewport_start = state.offset();
-        let (content_len, position, use_decorators, viewport_for_thumb) = calculate_scrollbar_position(
-            viewport_start, entries.len(), visible_height
-        );
-        
+        let (content_len, position, use_decorators, viewport_for_thumb) =
+            calculate_scrollbar_position(viewport_start, entries.len(), visible_height);
+
         let scrollbar = if use_decorators {
             Scrollbar::new(ScrollbarOrientation::VerticalRight)
                 .begin_symbol(Some("↑"))
@@ -285,14 +293,17 @@ pub fn draw_list(
                 .begin_symbol(None)
                 .end_symbol(None)
         };
-        
+
         let mut scrollbar_state = ScrollbarState::new(content_len)
             .viewport_content_length(viewport_for_thumb)
             .position(position);
-        
+
         frame.render_stateful_widget(
             scrollbar,
-            area.inner(Margin { horizontal: 0, vertical: 1 }),
+            area.inner(Margin {
+                horizontal: 0,
+                vertical: 1,
+            }),
             &mut scrollbar_state,
         );
     }
