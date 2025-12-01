@@ -50,6 +50,12 @@ impl App {
                 return Ok(());
             }
 
+            // Handle rebuild prompt if it's open
+            if self.rebuild_prompt.show {
+                self.handle_rebuild_prompt_input(key.code)?;
+                return Ok(());
+            }
+
             // Handle property editor if it's open
             if self.prop_editor.show {
                 self.handle_property_editor_input(key.code)?;
@@ -348,5 +354,35 @@ impl App {
         // Apply look-ahead scrolling
         let direction = if delta > 0 { 1 } else if delta < 0 { -1 } else { 0 };
         apply_look_ahead_scroll(new, len, viewport_height, state, direction);
+    }
+
+    fn handle_rebuild_prompt_input(&mut self, code: KeyCode) -> Result<()> {
+        match code {
+            KeyCode::Left | KeyCode::Char('h') => {
+                self.rebuild_prompt.selected = 0;
+            }
+            KeyCode::Right | KeyCode::Char('l') => {
+                self.rebuild_prompt.selected = 1;
+            }
+            KeyCode::Char('y') | KeyCode::Char('Y') => {
+                self.rebuild_prompt.selected = 0;
+                self.rebuild_prompt.pending_rebuild = true;
+            }
+            KeyCode::Char('n') | KeyCode::Char('N') | KeyCode::Esc => {
+                self.rebuild_prompt.show = false;
+            }
+            KeyCode::Enter => {
+                if self.rebuild_prompt.selected == 0 {
+                    self.rebuild_prompt.pending_rebuild = true;
+                } else {
+                    self.rebuild_prompt.show = false;
+                }
+            }
+            KeyCode::Tab => {
+                self.rebuild_prompt.selected = if self.rebuild_prompt.selected == 0 { 1 } else { 0 };
+            }
+            _ => {}
+        }
+        Ok(())
     }
 }

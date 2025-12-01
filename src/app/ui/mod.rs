@@ -5,6 +5,7 @@ use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Style},
     symbols::border,
+    text::{Line, Span},
     widgets::{Block, Borders, Clear, Paragraph},
     Frame,
 };
@@ -48,6 +49,79 @@ impl App {
         if self.prop_editor.show {
             self.draw_property_editor(frame);
         }
+
+        if self.rebuild_prompt.show {
+            self.draw_rebuild_prompt(frame);
+        }
+    }
+
+    fn draw_rebuild_prompt(&self, frame: &mut Frame) {
+        let area = frame.area();
+        
+        let popup_width = 60.min(area.width.saturating_sub(4));
+        let popup_height = 9;
+        let popup_x = (area.width.saturating_sub(popup_width)) / 2;
+        let popup_y = (area.height.saturating_sub(popup_height)) / 2;
+
+        let popup_area = Rect {
+            x: popup_x,
+            y: popup_y,
+            width: popup_width,
+            height: popup_height,
+        };
+
+        frame.render_widget(Clear, popup_area);
+
+        let block = Block::default()
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(Color::Cyan))
+            .title(" Rebuild System ");
+
+        let inner = block.inner(popup_area);
+        frame.render_widget(block, popup_area);
+
+        let chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([
+                Constraint::Length(2),
+                Constraint::Length(2),
+                Constraint::Length(1),
+                Constraint::Min(1),
+            ])
+            .split(inner);
+
+        let question = Paragraph::new("Rebuild the system now?\n(sudo nixos-rebuild switch)")
+            .style(Style::default().fg(Color::White));
+        frame.render_widget(question, chunks[0]);
+
+        let info = Paragraph::new("The terminal will show live build output.")
+            .style(Style::default().fg(Color::DarkGray));
+        frame.render_widget(info, chunks[1]);
+
+        let yes_style = if self.rebuild_prompt.selected == 0 {
+            Style::default().fg(Color::Black).bg(Color::Green)
+        } else {
+            Style::default().fg(Color::Green)
+        };
+        let no_style = if self.rebuild_prompt.selected == 1 {
+            Style::default().fg(Color::Black).bg(Color::Red)
+        } else {
+            Style::default().fg(Color::Red)
+        };
+
+        let buttons = Line::from(vec![
+            Span::raw("  "),
+            Span::styled(" Yes (y) ", yes_style),
+            Span::raw("   "),
+            Span::styled(" No (n) ", no_style),
+            Span::raw("  "),
+        ]);
+        let buttons_para = Paragraph::new(buttons);
+        frame.render_widget(buttons_para, chunks[2]);
+
+        let help = Paragraph::new("←/→: Select | Enter: Confirm | Esc: Cancel")
+            .style(Style::default().fg(Color::DarkGray));
+        frame.render_widget(help, chunks[3]);
     }
 
     fn draw_search_bar(&self, frame: &mut Frame, area: Rect) {
@@ -150,10 +224,20 @@ impl App {
             ])
             .split(area);
 
-        // Help line (always shown, gray)
-        let help_text = "F1: Help | Ctrl+S: Save | Ctrl+Q: Quit | Tab: Switch | Space: Toggle | e: Edit props";
+        // Help line with Save highlighted when dirty
         let help_style = Style::default().fg(Color::DarkGray);
-        let help_bar = Paragraph::new(help_text).style(help_style);
+        let save_style = if self.is_dirty {
+            Style::default().fg(Color::Yellow).add_modifier(ratatui::style::Modifier::BOLD | ratatui::style::Modifier::UNDERLINED)
+        } else {
+            help_style
+        };
+        
+        let help_line = Line::from(vec![
+            Span::styled("F1: Help | Ctrl+S: ", help_style),
+            Span::styled(if self.is_dirty { "Save*" } else { "Save" }, save_style),
+            Span::styled(" | Ctrl+Q: Quit | Tab: Switch | Space: Toggle | e: Edit props", help_style),
+        ]);
+        let help_bar = Paragraph::new(help_line);
         frame.render_widget(help_bar, lines[0]);
 
         // Status line (yellow when there's a message, otherwise empty)

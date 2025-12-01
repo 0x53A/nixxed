@@ -19,7 +19,7 @@ use ratatui::{layout::Rect, widgets::ListState};
 use crate::config_parser::{EntryType, NixConfig, SchemaCache};
 use crate::search::{NixSearcher, SearchResult};
 
-use types::{Focus, ListEntry, PropertyEditorState};
+use types::{Focus, ListEntry, PropertyEditorState, RebuildPromptState};
 
 pub struct App {
     pub config: NixConfig,
@@ -48,6 +48,10 @@ pub struct App {
     pub prop_editor: PropertyEditorState,
     // Property editor area for mouse handling
     pub property_list_area: Rect,
+    // Rebuild prompt state
+    pub rebuild_prompt: RebuildPromptState,
+    // Track unsaved changes
+    pub is_dirty: bool,
 }
 
 impl App {
@@ -82,6 +86,8 @@ impl App {
             packages_area: Rect::default(),
             prop_editor: PropertyEditorState::default(),
             property_list_area: Rect::default(),
+            rebuild_prompt: RebuildPromptState::default(),
+            is_dirty: false,
         };
 
         app.load_from_config();
@@ -151,7 +157,12 @@ impl App {
     pub fn save_config(&mut self) -> Result<()> {
         match self.config.save() {
             Ok(()) => {
+                self.is_dirty = false;
                 self.status_message = Some("Configuration saved!".to_string());
+                // Show rebuild prompt after successful save
+                self.rebuild_prompt.show = true;
+                self.rebuild_prompt.selected = 0;
+                self.rebuild_prompt.pending_rebuild = false;
             }
             Err(e) => {
                 self.status_message = Some(format!("Save error: {}", e));
@@ -212,6 +223,8 @@ impl App {
                 return Ok(());
             }
             
+            self.is_dirty = true;
+            
             // Update the local entry
             match list_type {
                 types::ListType::Programs => self.programs[idx].enabled = new_enabled,
@@ -235,6 +248,8 @@ impl App {
                 self.status_message = Some(format!("Error: {}", e));
                 return Ok(());
             }
+            
+            self.is_dirty = true;
             
             // Update the local entry
             match list_type {

@@ -10,6 +10,14 @@ pub enum Focus {
     PropertyEditor,
 }
 
+/// State for the rebuild confirmation prompt
+#[derive(Debug, Default)]
+pub struct RebuildPromptState {
+    pub show: bool,
+    pub selected: usize, // 0 = Yes, 1 = No
+    pub pending_rebuild: bool, // Signal to main loop to run rebuild
+}
+
 #[derive(Debug, Clone)]
 pub struct ListEntry {
     pub name: String,

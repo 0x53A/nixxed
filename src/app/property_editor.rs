@@ -149,6 +149,7 @@ impl App {
                                 if let Err(e) = self.config.set_property(&entry_name, &entry_type, &prop_name, &new_value) {
                                     self.status_message = Some(format!("Error saving property: {}", e));
                                 } else {
+                                    self.is_dirty = true;
                                     self.status_message = Some(format!("Updated {} = {}", prop_name, new_value));
                                     self.load_from_config();
                                 }
@@ -216,6 +217,7 @@ impl App {
                             if let Err(e) = self.config.add_property(name, entry_type, &self.prop_editor.new_name, &self.prop_editor.new_value, &prop_type) {
                                 self.status_message = Some(format!("Error adding property: {}", e));
                             } else {
+                                self.is_dirty = true;
                                 self.status_message = Some(format!("Added {} = {}", self.prop_editor.new_name, self.prop_editor.new_value));
                                 self.load_from_config();
                             }
@@ -353,6 +355,7 @@ impl App {
                     if let Err(e) = self.config.add_property(name, entry_type, &opt_name, &default_value, &prop_type) {
                         self.status_message = Some(format!("Error adding property: {}", e));
                     } else {
+                        self.is_dirty = true;
                         self.status_message = Some(format!("Added {} = {}", opt_name, default_value));
                         self.load_from_config();
                         
@@ -398,6 +401,7 @@ impl App {
             if let Err(e) = self.config.delete_property(&name, &entry_type, &prop_name) {
                 self.status_message = Some(format!("Error deleting property: {}", e));
             } else {
+                self.is_dirty = true;
                 self.status_message = Some(format!("Deleted property: {}", prop_name));
                 self.load_from_config();
                 
