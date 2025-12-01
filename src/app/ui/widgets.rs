@@ -242,7 +242,9 @@ pub fn draw_list(
 
     let items: Vec<ListItem> = entries
         .iter()
-        .map(|entry| {
+        .enumerate()
+        .map(|(i, entry)| {
+            let is_selected = state.selected() == Some(i);
             let checkbox = if entry.enabled { "[✓]" } else { "[ ]" };
             let config_indicator = if entry.in_config { "" } else { " +" };
             let extra_indicator = if entry.has_extra_config { " ⚙" } else { "" };
@@ -251,6 +253,8 @@ pub fn draw_list(
                 Style::default().fg(Color::Green)
             } else if entry.in_config {
                 Style::default().fg(Color::Red)
+            } else if is_selected {
+                Style::default().fg(Color::Gray)
             } else {
                 Style::default().fg(Color::DarkGray)
             };
