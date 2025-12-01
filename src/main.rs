@@ -71,6 +71,12 @@ fn run_app(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut App)
         }
     }
 
+    // Drain any remaining events from the input buffer to prevent
+    // escape sequence characters from leaking into the shell
+    while event::poll(std::time::Duration::from_millis(10))? {
+        let _ = event::read();
+    }
+
     Ok(())
 }
 
