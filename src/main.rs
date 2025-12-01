@@ -12,7 +12,7 @@ use crossterm::{
 };
 use ratatui::{
     backend::CrosstermBackend,
-    layout::{Constraint, Layout, Alignment},
+    layout::{Alignment, Constraint, Layout},
     style::{Color, Style, Stylize},
     text::{Line, Span},
     widgets::{Block, Borders, Paragraph},
@@ -43,7 +43,11 @@ fn main() -> Result<()> {
     let mut terminal = Terminal::new(backend).context("Failed to create terminal")?;
 
     // Draw loading screen while initializing
-    draw_loading_screen(&mut terminal, "Initializing...", "Verifying packages and loading schemas")?;
+    draw_loading_screen(
+        &mut terminal,
+        "Initializing...",
+        "Verifying packages and loading schemas",
+    )?;
 
     // Create and run the app
     let mut app = App::new(config);

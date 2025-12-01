@@ -54,35 +54,41 @@ impl App {
             if self.description_popup.show {
                 match key.code {
                     KeyCode::Up | KeyCode::Char('k') => {
-                        self.description_popup.scroll_offset = 
+                        self.description_popup.scroll_offset =
                             self.description_popup.scroll_offset.saturating_sub(1);
                     }
                     KeyCode::Down | KeyCode::Char('j') => {
-                        let max_scroll = self.description_popup.total_lines
+                        let max_scroll = self
+                            .description_popup
+                            .total_lines
                             .saturating_sub(self.description_popup.visible_lines);
                         if self.description_popup.scroll_offset < max_scroll {
                             self.description_popup.scroll_offset += 1;
                         }
                     }
                     KeyCode::PageUp => {
-                        self.description_popup.scroll_offset = 
-                            self.description_popup.scroll_offset.saturating_sub(
-                                self.description_popup.visible_lines.saturating_sub(1)
-                            );
+                        self.description_popup.scroll_offset = self
+                            .description_popup
+                            .scroll_offset
+                            .saturating_sub(self.description_popup.visible_lines.saturating_sub(1));
                     }
                     KeyCode::PageDown => {
-                        let max_scroll = self.description_popup.total_lines
+                        let max_scroll = self
+                            .description_popup
+                            .total_lines
                             .saturating_sub(self.description_popup.visible_lines);
-                        self.description_popup.scroll_offset = 
-                            (self.description_popup.scroll_offset + 
-                             self.description_popup.visible_lines.saturating_sub(1))
+                        self.description_popup.scroll_offset =
+                            (self.description_popup.scroll_offset
+                                + self.description_popup.visible_lines.saturating_sub(1))
                             .min(max_scroll);
                     }
                     KeyCode::Home => {
                         self.description_popup.scroll_offset = 0;
                     }
                     KeyCode::End => {
-                        self.description_popup.scroll_offset = self.description_popup.total_lines
+                        self.description_popup.scroll_offset = self
+                            .description_popup
+                            .total_lines
                             .saturating_sub(self.description_popup.visible_lines);
                     }
                     _ => {

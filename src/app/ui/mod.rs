@@ -92,7 +92,7 @@ impl App {
         // Word-wrap the description to fit the popup width
         let max_width = inner.width.saturating_sub(2) as usize;
         let wrapped = textwrap::wrap(&self.description_popup.description, max_width.max(1));
-        
+
         // Update total lines for scroll calculation
         let total_lines = wrapped.len() as u16;
         let visible_lines = inner.height.saturating_sub(1); // Reserve 1 line for scroll hint
@@ -108,20 +108,24 @@ impl App {
             .map(|s| Line::from(s.to_string()))
             .collect();
 
-        let description = Paragraph::new(visible_wrapped)
-            .style(Style::default().fg(Color::White));
-        frame.render_widget(description, Rect {
-            x: inner.x,
-            y: inner.y,
-            width: inner.width,
-            height: visible_lines,
-        });
+        let description = Paragraph::new(visible_wrapped).style(Style::default().fg(Color::White));
+        frame.render_widget(
+            description,
+            Rect {
+                x: inner.x,
+                y: inner.y,
+                width: inner.width,
+                height: visible_lines,
+            },
+        );
 
         // Show scroll indicator if content is scrollable
         if total_lines > visible_lines {
             let scroll_hint = if self.description_popup.scroll_offset == 0 {
                 "↓ Scroll with j/k, PgUp/PgDn"
-            } else if self.description_popup.scroll_offset >= total_lines.saturating_sub(visible_lines) {
+            } else if self.description_popup.scroll_offset
+                >= total_lines.saturating_sub(visible_lines)
+            {
                 "↑ Scroll with j/k, PgUp/PgDn"
             } else {
                 "↑↓ Scroll with j/k, PgUp/PgDn"

@@ -408,7 +408,7 @@ pub struct NixOption {
 /// Returns a list of NixOption for programs.*.enable and services.*.enable
 fn fetch_nix_options(query: &str, http_cache: &HttpCache) -> Vec<NixOption> {
     let search_body = build_options_search_body(query);
-    
+
     let response = if let Some(cached) = http_cache.get(&search_body) {
         cached
     } else {
@@ -459,7 +459,7 @@ fn parse_options_response(output: &str) -> Vec<NixOption> {
 
     for hit in response.hits.hits {
         let option_name = &hit.source.option_name;
-        
+
         // Only process *.enable options
         if !option_name.ends_with(".enable") {
             continue;
@@ -473,17 +473,19 @@ fn parse_options_response(output: &str) -> Vec<NixOption> {
                 // The module name is the second part
                 let module_name = parts[1].to_string();
                 let key = (prefix.to_string(), module_name.clone());
-                
+
                 // Only add each program/service once
                 if !seen.contains(&key) {
                     seen.insert(key);
-                    
+
                     // Clean up HTML from description
-                    let description = hit.source.option_description
+                    let description = hit
+                        .source
+                        .option_description
                         .as_ref()
                         .map(|d| strip_html_tags(d))
                         .unwrap_or_default();
-                    
+
                     options.push(NixOption {
                         prefix: prefix.to_string(),
                         module_name,
@@ -501,7 +503,7 @@ fn parse_options_response(output: &str) -> Vec<NixOption> {
 fn strip_html_tags(s: &str) -> String {
     let mut result = String::new();
     let mut in_tag = false;
-    
+
     for c in s.chars() {
         match c {
             '<' => in_tag = true,
@@ -510,7 +512,7 @@ fn strip_html_tags(s: &str) -> String {
             _ => {}
         }
     }
-    
+
     // Clean up extra whitespace
     result.split_whitespace().collect::<Vec<_>>().join(" ")
 }
