@@ -47,10 +47,12 @@ struct ElasticHit {
 struct PackageSource {
     package_attr_name: String,
     #[serde(default)]
+    #[allow(dead_code)]
     package_pname: Option<String>,
     #[serde(default)]
     package_description: Option<String>,
     #[serde(default)]
+    #[allow(dead_code)]
     package_programs: Option<Vec<String>>,
 }
 
@@ -602,9 +604,9 @@ fn parse_elastic_response(
     // First, add all packages from the packages API
     for (api_order, hit) in response.hits.hits.into_iter().enumerate() {
         let source = hit.source;
-        let name = source
-            .package_pname
-            .unwrap_or_else(|| source.package_attr_name.clone());
+        // Use package_attr_name for the full attribute path (e.g., kdePackages.krdc)
+        // This is needed when adding packages to environment.systemPackages
+        let name = source.package_attr_name;
         let description = source.package_description.unwrap_or_default();
 
         // Categorize based on available NixOS options

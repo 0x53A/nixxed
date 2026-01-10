@@ -626,21 +626,20 @@ impl NixConfig {
                     });
                 }
                 SyntaxKind::NODE_SELECT => {
-                    // Handle things like pkgs.package or lib.package
+                    // Handle things like kdePackages.krdc or python3Packages.numpy
+                    // Keep the full attribute path for proper matching with search results
                     let text = child.text().to_string();
-                    if let Some(name) = text.split('.').last() {
-                        self.entries.push(ConfigEntry {
-                            name: name.to_string(),
-                            entry_type: EntryType::Package,
-                            enabled: true,
-                            has_extra_config: false,
-                            text_range: (
-                                child.text_range().start().into(),
-                                child.text_range().end().into(),
-                            ),
-                            properties: Vec::new(),
-                        });
-                    }
+                    self.entries.push(ConfigEntry {
+                        name: text.clone(),
+                        entry_type: EntryType::Package,
+                        enabled: true,
+                        has_extra_config: false,
+                        text_range: (
+                            child.text_range().start().into(),
+                            child.text_range().end().into(),
+                        ),
+                        properties: Vec::new(),
+                    });
                 }
                 _ => {}
             }
